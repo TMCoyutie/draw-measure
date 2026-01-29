@@ -8,46 +8,48 @@ import { Ruler } from 'lucide-react';
 
 const Index = () => {
   const [image, setImage] = useState<string | null>(null);
+  const [showLengthLabels, setShowLengthLabels] = useState(false);
+  
   const {
     points,
     lines,
     currentTool,
     setCurrentTool,
     activePointId,
-    selectedPointId,
-    selectedLineId,
+    selectedPointIds,
+    selectedLineIds,
     mousePosition,
     setMousePosition,
     handleCanvasClick,
-    deletePoint,
-    deleteLine,
+    deleteSelected,
+    clearAll,
     selectPoint,
     selectLine,
+    clearSelection,
     cancelActivePoint,
     getPointById,
     calculateLineLength,
+    hasSelection,
   } = useDrawingState();
 
-  // Handle escape key to cancel active drawing
+  // Handle escape key to cancel active drawing and delete key to delete selected
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         cancelActivePoint();
+        clearSelection();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (hasSelection) {
+          e.preventDefault();
+          deleteSelected();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cancelActivePoint]);
+  }, [cancelActivePoint, clearSelection, deleteSelected, hasSelection]);
 
-  const handleDelete = () => {
-    if (selectedPointId) {
-      deletePoint(selectedPointId);
-    } else if (selectedLineId) {
-      deleteLine(selectedLineId);
-    }
-  };
-
-  const canDelete = selectedPointId !== null || selectedLineId !== null;
+  const hasData = points.length > 0 || lines.length > 0;
 
   return (
     <div className="flex h-screen bg-background">
@@ -74,16 +76,19 @@ const Index = () => {
           points={points}
           lines={lines}
           activePointId={activePointId}
-          selectedPointId={selectedPointId}
-          selectedLineId={selectedLineId}
+          selectedPointIds={selectedPointIds}
+          selectedLineIds={selectedLineIds}
           currentTool={currentTool}
           mousePosition={mousePosition}
+          showLengthLabels={showLengthLabels}
           onCanvasClick={handleCanvasClick}
           onMouseMove={(x, y) => setMousePosition({ x, y })}
           onMouseLeave={() => setMousePosition(null)}
           onPointClick={selectPoint}
           onLineClick={selectLine}
+          onClearSelection={clearSelection}
           getPointById={getPointById}
+          calculateLineLength={calculateLineLength}
         />
       </div>
 
@@ -97,15 +102,19 @@ const Index = () => {
         <Toolbar
           currentTool={currentTool}
           onToolChange={setCurrentTool}
-          canDelete={canDelete}
-          onDelete={handleDelete}
+          canDelete={hasSelection}
+          onDelete={deleteSelected}
+          onClearAll={clearAll}
+          hasData={hasData}
         />
 
         <MeasurementTable
           lines={lines}
           calculateLength={calculateLineLength}
-          selectedLineId={selectedLineId}
+          selectedLineIds={selectedLineIds}
           onSelectLine={selectLine}
+          showLengthLabels={showLengthLabels}
+          onToggleLengthLabels={() => setShowLengthLabels(prev => !prev)}
         />
       </aside>
     </div>

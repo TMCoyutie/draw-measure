@@ -1,4 +1,4 @@
-import { MousePointer2, Crosshair, Trash2 } from 'lucide-react';
+import { MousePointer2, Crosshair, Trash2, XCircle } from 'lucide-react';
 import { ToolType } from '@/types/drawing';
 import { Button } from '@/components/ui/button';
 
@@ -7,9 +7,18 @@ interface ToolbarProps {
   onToolChange: (tool: ToolType) => void;
   canDelete: boolean;
   onDelete: () => void;
+  onClearAll: () => void;
+  hasData: boolean;
 }
 
-export const Toolbar = ({ currentTool, onToolChange, canDelete, onDelete }: ToolbarProps) => {
+export const Toolbar = ({ 
+  currentTool, 
+  onToolChange, 
+  canDelete, 
+  onDelete,
+  onClearAll,
+  hasData,
+}: ToolbarProps) => {
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-toolbar-foreground/70 uppercase tracking-wider mb-3">
@@ -32,7 +41,7 @@ export const Toolbar = ({ currentTool, onToolChange, canDelete, onDelete }: Tool
         <span>標點工具</span>
       </button>
 
-      <div className="pt-4 border-t border-white/10 mt-4">
+      <div className="pt-4 border-t border-white/10 mt-4 space-y-2">
         <Button
           variant="destructive"
           size="sm"
@@ -43,7 +52,24 @@ export const Toolbar = ({ currentTool, onToolChange, canDelete, onDelete }: Tool
           <Trash2 size={16} className="mr-2" />
           刪除選取項目
         </Button>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          disabled={!hasData}
+          onClick={onClearAll}
+        >
+          <XCircle size={16} className="mr-2" />
+          清除全部
+        </Button>
       </div>
+      
+      <p className="text-xs text-toolbar-foreground/50 pt-2">
+        按住 <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd> 可多選
+        <br />
+        按 <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Delete</kbd> 刪除
+      </p>
     </div>
   );
 };

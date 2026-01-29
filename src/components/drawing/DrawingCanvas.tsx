@@ -6,16 +6,19 @@ interface DrawingCanvasProps {
   points: Point[];
   lines: Line[];
   activePointId: string | null;
-  selectedPointId: string | null;
-  selectedLineId: string | null;
+  selectedPointIds: Set<string>;
+  selectedLineIds: Set<string>;
   currentTool: ToolType;
   mousePosition: { x: number; y: number } | null;
+  showLengthLabels: boolean;
   onCanvasClick: (x: number, y: number) => void;
   onMouseMove: (x: number, y: number) => void;
   onMouseLeave: () => void;
-  onPointClick: (pointId: string) => void;
-  onLineClick: (lineId: string) => void;
+  onPointClick: (pointId: string, ctrlKey: boolean) => void;
+  onLineClick: (lineId: string, ctrlKey: boolean) => void;
+  onClearSelection: () => void;
   getPointById: (id: string) => Point | undefined;
+  calculateLineLength: (line: Line) => number;
 }
 
 export const DrawingCanvas = ({
@@ -23,16 +26,19 @@ export const DrawingCanvas = ({
   points,
   lines,
   activePointId,
-  selectedPointId,
-  selectedLineId,
+  selectedPointIds,
+  selectedLineIds,
   currentTool,
   mousePosition,
+  showLengthLabels,
   onCanvasClick,
   onMouseMove,
   onMouseLeave,
   onPointClick,
   onLineClick,
+  onClearSelection,
   getPointById,
+  calculateLineLength,
 }: DrawingCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
@@ -48,13 +54,16 @@ export const DrawingCanvas = ({
   }, [image]);
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (currentTool !== 'marker') return;
-    
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    onCanvasClick(x, y);
+    if (currentTool === 'marker') {
+      const svg = e.currentTarget;
+      const rect = svg.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      onCanvasClick(x, y);
+    } else if (currentTool === 'cursor') {
+      // Click on empty area clears selection (if not clicking on a point/line)
+      onClearSelection();
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -75,6 +84,18 @@ export const DrawingCanvas = ({
       x: (start.x + end.x) / 2,
       y: (start.y + end.y) / 2,
     };
+  };
+
+  const getDisplayLabel = (line: Line) => {
+    if (showLengthLabels) {
+      return Math.round(calculateLineLength(line)).toString();
+    }
+    return line.label;
+  };
+
+  const getLabelWidth = (label: string) => {
+    const charCount = label.length;
+    return Math.max(24, charCount * 10 + 8);
   };
 
   return (
@@ -109,8 +130,10 @@ export const DrawingCanvas = ({
               const endPoint = getPointById(line.endPointId);
               if (!startPoint || !endPoint) return null;
 
-              const isSelected = selectedLineId === line.id;
+              const isSelected = selectedLineIds.has(line.id);
               const center = getLineCenter(line);
+              const displayLabel = getDisplayLabel(line);
+              const labelWidth = getLabelWidth(displayLabel);
 
               return (
                 <g key={line.id}>
@@ -124,7 +147,7 @@ export const DrawingCanvas = ({
                     onClick={(e) => {
                       if (currentTool === 'cursor') {
                         e.stopPropagation();
-                        onLineClick(line.id);
+                        onLineClick(line.id, e.ctrlKey || e.metaKey);
                       }
                     }}
                     style={{ cursor: currentTool === 'cursor' ? 'pointer' : 'inherit' }}
@@ -133,9 +156,9 @@ export const DrawingCanvas = ({
                   {center && (
                     <g transform={`translate(${center.x}, ${center.y})`}>
                       <rect
-                        x="-12"
+                        x={-labelWidth / 2}
                         y="-10"
-                        width="24"
+                        width={labelWidth}
                         height="20"
                         rx="4"
                         fill="hsl(var(--secondary))"
@@ -147,7 +170,7 @@ export const DrawingCanvas = ({
                         className="fill-white text-xs font-bold select-none"
                         style={{ pointerEvents: 'none' }}
                       >
-                        {line.label}
+                        {displayLabel}
                       </text>
                     </g>
                   )}
@@ -172,7 +195,7 @@ export const DrawingCanvas = ({
             {/* Points */}
             {points.map(point => {
               const isActive = activePointId === point.id;
-              const isSelected = selectedPointId === point.id;
+              const isSelected = selectedPointIds.has(point.id);
 
               return (
                 <circle
@@ -185,7 +208,7 @@ export const DrawingCanvas = ({
                   onClick={(e) => {
                     if (currentTool === 'cursor') {
                       e.stopPropagation();
-                      onPointClick(point.id);
+                      onPointClick(point.id, e.ctrlKey || e.metaKey);
                     }
                   }}
                 />
