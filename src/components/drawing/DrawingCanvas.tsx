@@ -17,6 +17,7 @@ interface DrawingCanvasProps {
   onPointClick: (pointId: string, ctrlKey: boolean) => void;
   onLineClick: (lineId: string, ctrlKey: boolean) => void;
   onClearSelection: () => void;
+  onPointDrag: (pointId: string, x: number, y: number) => void;
   getPointById: (id: string) => Point | undefined;
   calculateLineLength: (line: Line) => number;
 }
@@ -37,11 +38,13 @@ export const DrawingCanvas = ({
   onPointClick,
   onLineClick,
   onClearSelection,
+  onPointDrag,
   getPointById,
   calculateLineLength,
 }: DrawingCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
 
   useEffect(() => {
     if (image) {
@@ -54,6 +57,8 @@ export const DrawingCanvas = ({
   }, [image]);
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (draggingPointId) return; // Don't trigger click during drag
+    
     if (currentTool === 'marker') {
       const svg = e.currentTarget;
       const rect = svg.getBoundingClientRect();
@@ -61,7 +66,6 @@ export const DrawingCanvas = ({
       const y = e.clientY - rect.top;
       onCanvasClick(x, y);
     } else if (currentTool === 'cursor') {
-      // Click on empty area clears selection (if not clicking on a point/line)
       onClearSelection();
     }
   };
@@ -71,7 +75,23 @@ export const DrawingCanvas = ({
     const rect = svg.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    
+    if (draggingPointId && currentTool === 'cursor') {
+      onPointDrag(draggingPointId, x, y);
+    }
+    
     onMouseMove(x, y);
+  };
+
+  const handleMouseUp = () => {
+    setDraggingPointId(null);
+  };
+
+  const handlePointMouseDown = (e: React.MouseEvent, pointId: string) => {
+    if (currentTool === 'cursor') {
+      e.stopPropagation();
+      setDraggingPointId(pointId);
+    }
   };
 
   const activePoint = activePointId ? getPointById(activePointId) : null;
@@ -88,7 +108,7 @@ export const DrawingCanvas = ({
 
   const getDisplayLabel = (line: Line) => {
     if (showLengthLabels) {
-      return Math.round(calculateLineLength(line)).toString();
+      return calculateLineLength(line).toFixed(1);
     }
     return line.label;
   };
@@ -112,10 +132,14 @@ export const DrawingCanvas = ({
           <svg
             width={imageSize?.width || 800}
             height={imageSize?.height || 600}
-            className={`${currentTool === 'marker' ? 'cursor-crosshair' : 'cursor-default'}`}
+            className={`${currentTool === 'marker' ? 'cursor-crosshair' : draggingPointId ? 'cursor-grabbing' : 'cursor-default'}`}
             onClick={handleClick}
             onMouseMove={handleMouseMove}
-            onMouseLeave={onMouseLeave}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={() => {
+              setDraggingPointId(null);
+              onMouseLeave();
+            }}
           >
             {/* Background image */}
             <image
@@ -137,6 +161,23 @@ export const DrawingCanvas = ({
 
               return (
                 <g key={line.id}>
+                  {/* Invisible wider line for easier click detection */}
+                  <line
+                    x1={startPoint.x}
+                    y1={startPoint.y}
+                    x2={endPoint.x}
+                    y2={endPoint.y}
+                    stroke="transparent"
+                    strokeWidth={16}
+                    onClick={(e) => {
+                      if (currentTool === 'cursor' && !draggingPointId) {
+                        e.stopPropagation();
+                        onLineClick(line.id, e.ctrlKey || e.metaKey);
+                      }
+                    }}
+                    style={{ cursor: currentTool === 'cursor' ? 'pointer' : 'inherit' }}
+                  />
+                  {/* Visible line */}
                   <line
                     x1={startPoint.x}
                     y1={startPoint.y}
@@ -144,13 +185,7 @@ export const DrawingCanvas = ({
                     y2={endPoint.y}
                     className={`measurement-line ${isSelected ? 'stroke-primary' : ''}`}
                     strokeWidth={isSelected ? 3 : 2}
-                    onClick={(e) => {
-                      if (currentTool === 'cursor') {
-                        e.stopPropagation();
-                        onLineClick(line.id, e.ctrlKey || e.metaKey);
-                      }
-                    }}
-                    style={{ cursor: currentTool === 'cursor' ? 'pointer' : 'inherit' }}
+                    style={{ pointerEvents: 'none' }}
                   />
                   {/* Line label */}
                   {center && (
@@ -196,22 +231,35 @@ export const DrawingCanvas = ({
             {points.map(point => {
               const isActive = activePointId === point.id;
               const isSelected = selectedPointIds.has(point.id);
+              const isDragging = draggingPointId === point.id;
 
               return (
-                <circle
-                  key={point.id}
-                  cx={point.x}
-                  cy={point.y}
-                  r={isActive || isSelected ? 8 : 6}
-                  className={`marker-point ${isSelected ? 'selected' : ''}`}
-                  fill={isActive ? 'hsl(var(--accent))' : 'hsl(var(--marker-color))'}
-                  onClick={(e) => {
-                    if (currentTool === 'cursor') {
-                      e.stopPropagation();
-                      onPointClick(point.id, e.ctrlKey || e.metaKey);
-                    }
-                  }}
-                />
+                <g key={point.id}>
+                  {/* Invisible larger circle for easier click/drag detection */}
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={20}
+                    fill="transparent"
+                    style={{ cursor: currentTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'inherit' }}
+                    onMouseDown={(e) => handlePointMouseDown(e, point.id)}
+                    onClick={(e) => {
+                      if (currentTool === 'cursor' && !draggingPointId) {
+                        e.stopPropagation();
+                        onPointClick(point.id, e.ctrlKey || e.metaKey);
+                      }
+                    }}
+                  />
+                  {/* Visible point */}
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isActive || isSelected ? 8 : 6}
+                    className={`marker-point ${isSelected ? 'selected' : ''}`}
+                    fill={isActive ? 'hsl(var(--accent))' : 'hsl(var(--marker-color))'}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                </g>
               );
             })}
           </svg>
