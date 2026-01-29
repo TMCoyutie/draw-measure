@@ -29,6 +29,7 @@ const Index = () => {
     cancelActivePoint,
     getPointById,
     calculateLineLength,
+    updatePointPosition,
     hasSelection,
   } = useDrawingState();
 
@@ -87,6 +88,7 @@ const Index = () => {
           onPointClick={selectPoint}
           onLineClick={selectLine}
           onClearSelection={clearSelection}
+          onPointDrag={updatePointPosition}
           getPointById={getPointById}
           calculateLineLength={calculateLineLength}
         />

@@ -26,21 +26,21 @@ export const MeasurementTable = ({
           測量數據
         </h3>
         <Button
-          variant="ghost"
+          variant={showLengthLabels ? "default" : "secondary"}
           size="sm"
           onClick={onToggleLengthLabels}
-          className="h-7 px-2 text-xs"
+          className="h-8 px-3 text-xs font-medium shadow-sm"
           title={showLengthLabels ? '切換為代號顯示' : '切換為長度顯示'}
         >
           {showLengthLabels ? (
             <>
-              <Hash size={14} className="mr-1" />
-              代號
+              <Hash size={14} className="mr-1.5" />
+              顯示代號
             </>
           ) : (
             <>
-              <ArrowUpDown size={14} className="mr-1" />
-              長度
+              <ArrowUpDown size={14} className="mr-1.5" />
+              顯示長度
             </>
           )}
         </Button>

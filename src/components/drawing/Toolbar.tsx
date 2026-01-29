@@ -66,9 +66,7 @@ export const Toolbar = ({
       </div>
       
       <p className="text-xs text-toolbar-foreground/50 pt-2">
-        按住 <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd> 可多選
-        <br />
-        按 <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Delete</kbd> 刪除
+        按住 Ctrl 可多選，按 Delete 刪除
       </p>
     </div>
   );

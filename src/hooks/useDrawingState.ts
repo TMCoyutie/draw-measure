@@ -241,6 +241,12 @@ export const useDrawingState = () => {
     return Math.sqrt((endPoint.x - startPoint.x) ** 2 + (endPoint.y - startPoint.y) ** 2);
   }, [getPointById]);
 
+  const updatePointPosition = useCallback((pointId: string, x: number, y: number) => {
+    setPoints(prev => prev.map(p => 
+      p.id === pointId ? { ...p, x, y } : p
+    ));
+  }, []);
+
   const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0;
 
   return {
@@ -264,6 +270,7 @@ export const useDrawingState = () => {
     cancelActivePoint,
     getPointById,
     calculateLineLength,
+    updatePointPosition,
     hasSelection,
   };
 };
