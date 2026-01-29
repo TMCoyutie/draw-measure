@@ -18,8 +18,8 @@ export const useDrawingState = () => {
   const [lines, setLines] = useState<Line[]>([]);
   const [currentTool, setCurrentTool] = useState<ToolType>('marker');
   const [activePointId, setActivePointId] = useState<string | null>(null);
-  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
+  const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set());
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
 
   const addPoint = useCallback((x: number, y: number): string => {
@@ -86,37 +86,144 @@ export const useDrawingState = () => {
     }
   }, [currentTool, activePointId, findPointAtPosition, addPoint, lineExists, lines]);
 
+  // Helper to find orphaned points (not connected to any line)
+  const findOrphanedPoints = useCallback((remainingLines: Line[], allPoints: Point[]): string[] => {
+    const connectedPointIds = new Set<string>();
+    remainingLines.forEach(line => {
+      connectedPointIds.add(line.startPointId);
+      connectedPointIds.add(line.endPointId);
+    });
+    return allPoints
+      .filter(p => !connectedPointIds.has(p.id))
+      .map(p => p.id);
+  }, []);
+
   const deletePoint = useCallback((pointId: string) => {
-    // Remove all lines connected to this point
-    setLines(prev => prev.filter(line => 
-      line.startPointId !== pointId && line.endPointId !== pointId
-    ));
-    // Remove the point
-    setPoints(prev => prev.filter(p => p.id !== pointId));
+    setLines(prev => {
+      const newLines = prev.filter(line => 
+        line.startPointId !== pointId && line.endPointId !== pointId
+      );
+      // Clean up orphaned points after removing lines
+      setPoints(prevPoints => {
+        const remainingPoints = prevPoints.filter(p => p.id !== pointId);
+        const orphanedIds = findOrphanedPoints(newLines, remainingPoints);
+        return remainingPoints.filter(p => !orphanedIds.includes(p.id));
+      });
+      return newLines;
+    });
     
     if (activePointId === pointId) {
       setActivePointId(null);
     }
-    if (selectedPointId === pointId) {
-      setSelectedPointId(null);
-    }
-  }, [activePointId, selectedPointId]);
+    setSelectedPointIds(prev => {
+      const next = new Set(prev);
+      next.delete(pointId);
+      return next;
+    });
+  }, [activePointId, findOrphanedPoints]);
 
   const deleteLine = useCallback((lineId: string) => {
-    setLines(prev => prev.filter(l => l.id !== lineId));
-    if (selectedLineId === lineId) {
-      setSelectedLineId(null);
-    }
-  }, [selectedLineId]);
+    setLines(prev => {
+      const newLines = prev.filter(l => l.id !== lineId);
+      // Clean up orphaned points after removing line
+      setPoints(prevPoints => {
+        const orphanedIds = findOrphanedPoints(newLines, prevPoints);
+        return prevPoints.filter(p => !orphanedIds.includes(p.id));
+      });
+      return newLines;
+    });
+    setSelectedLineIds(prev => {
+      const next = new Set(prev);
+      next.delete(lineId);
+      return next;
+    });
+  }, [findOrphanedPoints]);
 
-  const selectPoint = useCallback((pointId: string | null) => {
-    setSelectedPointId(pointId);
-    setSelectedLineId(null);
+  const deleteSelected = useCallback(() => {
+    // Delete selected lines first
+    setLines(prev => {
+      let newLines = prev.filter(l => !selectedLineIds.has(l.id));
+      
+      // Also delete lines connected to selected points
+      newLines = newLines.filter(line => 
+        !selectedPointIds.has(line.startPointId) && !selectedPointIds.has(line.endPointId)
+      );
+      
+      // Clean up orphaned points
+      setPoints(prevPoints => {
+        const remainingPoints = prevPoints.filter(p => !selectedPointIds.has(p.id));
+        const orphanedIds = findOrphanedPoints(newLines, remainingPoints);
+        return remainingPoints.filter(p => !orphanedIds.includes(p.id));
+      });
+      
+      return newLines;
+    });
+    
+    // Clear active point if deleted
+    if (selectedPointIds.has(activePointId || '')) {
+      setActivePointId(null);
+    }
+    
+    // Clear selections
+    setSelectedPointIds(new Set());
+    setSelectedLineIds(new Set());
+  }, [selectedLineIds, selectedPointIds, activePointId, findOrphanedPoints]);
+
+  const clearAll = useCallback(() => {
+    setPoints([]);
+    setLines([]);
+    setActivePointId(null);
+    setSelectedPointIds(new Set());
+    setSelectedLineIds(new Set());
   }, []);
 
-  const selectLine = useCallback((lineId: string | null) => {
-    setSelectedLineId(lineId);
-    setSelectedPointId(null);
+  const selectPoint = useCallback((pointId: string | null, ctrlKey: boolean = false) => {
+    if (pointId === null) {
+      setSelectedPointIds(new Set());
+      return;
+    }
+    
+    if (ctrlKey) {
+      setSelectedPointIds(prev => {
+        const next = new Set(prev);
+        if (next.has(pointId)) {
+          next.delete(pointId);
+        } else {
+          next.add(pointId);
+        }
+        return next;
+      });
+    } else {
+      setSelectedPointIds(new Set([pointId]));
+      setSelectedLineIds(new Set());
+    }
+  }, []);
+
+  const selectLine = useCallback((lineId: string | null, ctrlKey: boolean = false) => {
+    if (lineId === null) {
+      setSelectedLineIds(new Set());
+      return;
+    }
+    
+    if (ctrlKey) {
+      setSelectedLineIds(prev => {
+        const next = new Set(prev);
+        if (next.has(lineId)) {
+          next.delete(lineId);
+        } else {
+          next.add(lineId);
+        }
+        return next;
+      });
+    } else {
+      setSelectedLineIds(new Set([lineId]));
+      setSelectedPointIds(new Set());
+    }
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedPointIds(new Set());
+    setSelectedLineIds(new Set());
   }, []);
 
   const cancelActivePoint = useCallback(() => {
@@ -134,23 +241,29 @@ export const useDrawingState = () => {
     return Math.sqrt((endPoint.x - startPoint.x) ** 2 + (endPoint.y - startPoint.y) ** 2);
   }, [getPointById]);
 
+  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0;
+
   return {
     points,
     lines,
     currentTool,
     setCurrentTool,
     activePointId,
-    selectedPointId,
-    selectedLineId,
+    selectedPointIds,
+    selectedLineIds,
     mousePosition,
     setMousePosition,
     handleCanvasClick,
     deletePoint,
     deleteLine,
+    deleteSelected,
+    clearAll,
     selectPoint,
     selectLine,
+    clearSelection,
     cancelActivePoint,
     getPointById,
     calculateLineLength,
+    hasSelection,
   };
 };
