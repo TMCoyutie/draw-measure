@@ -57,6 +57,16 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        toolbar: {
+          DEFAULT: "hsl(var(--toolbar-bg))",
+          foreground: "hsl(var(--toolbar-foreground))",
+        },
+        canvas: "hsl(var(--canvas-bg))",
+        marker: {
+          DEFAULT: "hsl(var(--marker-color))",
+          hover: "hsl(var(--marker-hover))",
+        },
+        line: "hsl(var(--line-color))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -80,10 +90,15 @@ export default {
             height: "0",
           },
         },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       },
     },
   },
