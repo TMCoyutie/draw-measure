@@ -295,7 +295,17 @@ export const DrawingCanvas = ({
                   />
                   {/* Line label */}
                   {center && (
-                    <g transform={`translate(${center.x}, ${center.y})`}>
+                    <g 
+                      transform={`translate(${center.x}, ${center.y})`}
+                      // 新增：讓標籤也能觸發點擊
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => {
+                        if (currentTool === 'cursor' && !draggingPointId) {
+                          e.stopPropagation();
+                          onLineClick(line.id, e.ctrlKey || e.metaKey);
+                        }
+                      }}
+                    >
                       <rect
                         x={-labelWidth / 2}
                         y="-10"
@@ -362,7 +372,17 @@ export const DrawingCanvas = ({
                     style={{ pointerEvents: 'none' }}
                   />
                   {/* Angle label */}
-                  <g transform={`translate(${arcData.labelX}, ${arcData.labelY})`}>
+                  <g 
+                    transform={`translate(${arcData.labelX}, ${arcData.labelY})`}
+                    // 新增：讓角度標籤也能觸發點擊選取
+                    style={{ cursor: 'pointer' }}
+                    onClick={(e) => {
+                      if (currentTool === 'cursor' && !draggingPointId) {
+                        e.stopPropagation();
+                        onAngleClick(angle.id, e.ctrlKey || e.metaKey);
+                      }
+                    }}
+                  >
                     <rect
                       x="-20"
                       y="-10"
