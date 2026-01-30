@@ -331,9 +331,12 @@ export const DrawingCanvas = ({
                   {/* 新增：半透明扇形填充層 */}
                   <path
                     d={arcData.fillPath}
-                    fill={isSelected ? 'hsl(var(--primary))' : 'hsl(var(--accent))'}
-                    fillOpacity={0.2} // 設定 20% 透明度
-                    style={{ pointerEvents: 'none' }}
+                    fill="#2dd4bf" // 直接先用 Teal 色碼測試 (Tailwind teal-400)
+                    fillOpacity={0.3} // 提高一點透明度到 30% 看看
+                    style={{ 
+                      pointerEvents: 'none',
+                      display: 'block' // 確保沒有被 CSS 隱藏
+                    }}
                   />
                   
                   {/* Invisible wider arc for click detection */}
