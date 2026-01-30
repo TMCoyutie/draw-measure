@@ -45,6 +45,7 @@ export const DrawingCanvas = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (image) {
@@ -77,38 +78,65 @@ export const DrawingCanvas = ({
     const y = e.clientY - rect.top;
     
     if (draggingPointId && currentTool === 'cursor') {
-      onPointDrag(draggingPointId, x, y);
+      // Update local drag position for real-time visual feedback
+      setDragPosition({ x, y });
     }
     
     onMouseMove(x, y);
   };
 
   const handleMouseUp = () => {
+    // Commit the drag position to state on mouse up
+    if (draggingPointId && dragPosition) {
+      onPointDrag(draggingPointId, dragPosition.x, dragPosition.y);
+    }
     setDraggingPointId(null);
+    setDragPosition(null);
   };
 
-  const handlePointMouseDown = (e: React.MouseEvent, pointId: string) => {
+  const handlePointMouseDown = (e: React.MouseEvent, point: Point) => {
     if (currentTool === 'cursor') {
       e.stopPropagation();
-      setDraggingPointId(pointId);
+      setDraggingPointId(point.id);
+      setDragPosition({ x: point.x, y: point.y });
     }
   };
 
   const activePoint = activePointId ? getPointById(activePointId) : null;
 
+  // Get point position considering drag state
+  const getPointPosition = (point: Point): { x: number; y: number } => {
+    if (draggingPointId === point.id && dragPosition) {
+      return dragPosition;
+    }
+    return { x: point.x, y: point.y };
+  };
+
   const getLineCenter = (line: Line) => {
     const start = getPointById(line.startPointId);
     const end = getPointById(line.endPointId);
     if (!start || !end) return null;
+    const startPos = getPointPosition(start);
+    const endPos = getPointPosition(end);
     return {
-      x: (start.x + end.x) / 2,
-      y: (start.y + end.y) / 2,
+      x: (startPos.x + endPos.x) / 2,
+      y: (startPos.y + endPos.y) / 2,
     };
+  };
+
+  // Calculate line length considering drag position
+  const getLineLengthWithDrag = (line: Line): number => {
+    const start = getPointById(line.startPointId);
+    const end = getPointById(line.endPointId);
+    if (!start || !end) return 0;
+    const startPos = getPointPosition(start);
+    const endPos = getPointPosition(end);
+    return Math.sqrt((endPos.x - startPos.x) ** 2 + (endPos.y - startPos.y) ** 2);
   };
 
   const getDisplayLabel = (line: Line) => {
     if (showLengthLabels) {
-      return calculateLineLength(line).toFixed(1);
+      return getLineLengthWithDrag(line).toFixed(1);
     }
     return line.label;
   };
@@ -137,7 +165,11 @@ export const DrawingCanvas = ({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={() => {
+              if (draggingPointId && dragPosition) {
+                onPointDrag(draggingPointId, dragPosition.x, dragPosition.y);
+              }
               setDraggingPointId(null);
+              setDragPosition(null);
               onMouseLeave();
             }}
           >
@@ -155,6 +187,8 @@ export const DrawingCanvas = ({
               if (!startPoint || !endPoint) return null;
 
               const isSelected = selectedLineIds.has(line.id);
+              const startPos = getPointPosition(startPoint);
+              const endPos = getPointPosition(endPoint);
               const center = getLineCenter(line);
               const displayLabel = getDisplayLabel(line);
               const labelWidth = getLabelWidth(displayLabel);
@@ -163,10 +197,10 @@ export const DrawingCanvas = ({
                 <g key={line.id}>
                   {/* Invisible wider line for easier click detection */}
                   <line
-                    x1={startPoint.x}
-                    y1={startPoint.y}
-                    x2={endPoint.x}
-                    y2={endPoint.y}
+                    x1={startPos.x}
+                    y1={startPos.y}
+                    x2={endPos.x}
+                    y2={endPos.y}
                     stroke="transparent"
                     strokeWidth={16}
                     onClick={(e) => {
@@ -179,10 +213,10 @@ export const DrawingCanvas = ({
                   />
                   {/* Visible line */}
                   <line
-                    x1={startPoint.x}
-                    y1={startPoint.y}
-                    x2={endPoint.x}
-                    y2={endPoint.y}
+                    x1={startPos.x}
+                    y1={startPos.y}
+                    x2={endPos.x}
+                    y2={endPos.y}
                     className={`measurement-line ${isSelected ? 'stroke-primary' : ''}`}
                     strokeWidth={isSelected ? 3 : 2}
                     style={{ pointerEvents: 'none' }}
@@ -232,17 +266,18 @@ export const DrawingCanvas = ({
               const isActive = activePointId === point.id;
               const isSelected = selectedPointIds.has(point.id);
               const isDragging = draggingPointId === point.id;
+              const pos = getPointPosition(point);
 
               return (
                 <g key={point.id}>
                   {/* Invisible larger circle for easier click/drag detection */}
                   <circle
-                    cx={point.x}
-                    cy={point.y}
+                    cx={pos.x}
+                    cy={pos.y}
                     r={20}
                     fill="transparent"
                     style={{ cursor: currentTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'inherit' }}
-                    onMouseDown={(e) => handlePointMouseDown(e, point.id)}
+                    onMouseDown={(e) => handlePointMouseDown(e, point)}
                     onClick={(e) => {
                       if (currentTool === 'cursor' && !draggingPointId) {
                         e.stopPropagation();
@@ -252,8 +287,8 @@ export const DrawingCanvas = ({
                   />
                   {/* Visible point */}
                   <circle
-                    cx={point.x}
-                    cy={point.y}
+                    cx={pos.x}
+                    cy={pos.y}
                     r={isActive || isSelected ? 8 : 6}
                     className={`marker-point ${isSelected ? 'selected' : ''}`}
                     fill={isActive ? 'hsl(var(--accent))' : 'hsl(var(--marker-color))'}

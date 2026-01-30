@@ -16,11 +16,46 @@ const getNextLabel = (existingLabels: string[]): string => {
 export const useDrawingState = () => {
   const [points, setPoints] = useState<Point[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
-  const [currentTool, setCurrentTool] = useState<ToolType>('marker');
+  const [currentTool, setCurrentToolInternal] = useState<ToolType>('marker');
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
   const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set());
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Helper to find orphaned points (not connected to any line)
+  const findOrphanedPointIds = useCallback((currentLines: Line[], currentPoints: Point[]): string[] => {
+    const connectedPointIds = new Set<string>();
+    currentLines.forEach(line => {
+      connectedPointIds.add(line.startPointId);
+      connectedPointIds.add(line.endPointId);
+    });
+    return currentPoints
+      .filter(p => !connectedPointIds.has(p.id))
+      .map(p => p.id);
+  }, []);
+
+  // Custom setCurrentTool that handles cleanup when switching tools
+  const setCurrentTool = useCallback((tool: ToolType) => {
+    if (tool === 'cursor') {
+      // Cancel active point when switching to cursor
+      setActivePointId(null);
+      // Clean up orphaned points
+      setPoints(prevPoints => {
+        setLines(prevLines => {
+          const orphanedIds = findOrphanedPointIds(prevLines, prevPoints);
+          if (orphanedIds.length > 0) {
+            // Use setTimeout to avoid state update during render
+            setTimeout(() => {
+              setPoints(p => p.filter(point => !orphanedIds.includes(point.id)));
+            }, 0);
+          }
+          return prevLines;
+        });
+        return prevPoints;
+      });
+    }
+    setCurrentToolInternal(tool);
+  }, [findOrphanedPointIds]);
 
   const addPoint = useCallback((x: number, y: number): string => {
     const newPoint: Point = { id: generateId(), x, y };
@@ -86,17 +121,10 @@ export const useDrawingState = () => {
     }
   }, [currentTool, activePointId, findPointAtPosition, addPoint, lineExists, lines]);
 
-  // Helper to find orphaned points (not connected to any line)
+  // Helper to find orphaned points (used for deletion cleanup)
   const findOrphanedPoints = useCallback((remainingLines: Line[], allPoints: Point[]): string[] => {
-    const connectedPointIds = new Set<string>();
-    remainingLines.forEach(line => {
-      connectedPointIds.add(line.startPointId);
-      connectedPointIds.add(line.endPointId);
-    });
-    return allPoints
-      .filter(p => !connectedPointIds.has(p.id))
-      .map(p => p.id);
-  }, []);
+    return findOrphanedPointIds(remainingLines, allPoints);
+  }, [findOrphanedPointIds]);
 
   const deletePoint = useCallback((pointId: string) => {
     setLines(prev => {
