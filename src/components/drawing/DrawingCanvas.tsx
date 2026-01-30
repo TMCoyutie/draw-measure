@@ -386,18 +386,28 @@ export const DrawingCanvas = ({
             )}
 
             {/* Points */}
+            {/* 找到渲染 Points 的地方 */}
             {points.map(point => {
               const isActive = activePointId === point.id;
               const isSelected = selectedPointIds.has(point.id);
               const isDragging = draggingPointId === point.id;
               const pos = getPointPosition(point);
-
+            
               return (
-                <g key={point.id}>
-                  {/* Invisible larger circle for easier click/drag detection */}
+                <g 
+                  key={point.id}
+                  // 關鍵修改：將座標套用在 group 的 style 上，並使用 transform
+                  // 這樣可以強迫 GPU 處理位移，不經過 React 的屬性計算
+                  style={{
+                    transform: `translate(${pos.x}px, ${pos.y}px)`,
+                    transition: isDragging ? 'none' : 'transform 0.1s ease-out', // 拖曳時關閉延遲
+                    willChange: 'transform'
+                  }}
+                >
+                  {/* 這裡的 cx, cy 全部改為 0，因為位置由上面的 translate 控制 */}
                   <circle
-                    cx={pos.x}
-                    cy={pos.y}
+                    cx={0}
+                    cy={0}
                     r={20}
                     fill="transparent"
                     style={{ cursor: currentTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'inherit' }}
@@ -409,10 +419,9 @@ export const DrawingCanvas = ({
                       }
                     }}
                   />
-                  {/* Visible point */}
                   <circle
-                    cx={pos.x}
-                    cy={pos.y}
+                    cx={0}
+                    cy={0}
                     r={isActive || isSelected ? 8 : 6}
                     className={`marker-point ${isSelected ? 'selected' : ''}`}
                     fill={isActive ? 'hsl(var(--accent))' : 'hsl(var(--marker-color))'}
