@@ -164,50 +164,50 @@ export const DrawingCanvas = ({
     const line2 = lines.find(l => l.id === angle.line2Id);
     
     if (!vertex || !line1 || !line2) return null;
-
+  
     const vertexPos = getPointPosition(vertex);
-    
-    // Get the other points
     const p1Id = line1.startPointId === angle.vertexPointId ? line1.endPointId : line1.startPointId;
     const p2Id = line2.startPointId === angle.vertexPointId ? line2.endPointId : line2.startPointId;
     
     const p1 = getPointById(p1Id);
     const p2 = getPointById(p2Id);
-    
     if (!p1 || !p2) return null;
-
+  
     const p1Pos = getPointPosition(p1);
     const p2Pos = getPointPosition(p2);
-
-    // Calculate angles from vertex
+  
+    // --- 新增：動態半徑計算 ---
+    const dist1 = Math.sqrt((p1Pos.x - vertexPos.x) ** 2 + (p1Pos.y - vertexPos.y) ** 2);
+    const dist2 = Math.sqrt((p2Pos.x - vertexPos.x) ** 2 + (p2Pos.y - vertexPos.y) ** 2);
+    // 取短線的 30% 作為半徑，但最小不小於 20，最大不超過 50
+    const radius = Math.max(20, Math.min(50, Math.min(dist1, dist2) * 0.3));
+    // -----------------------
+  
     const angle1 = Math.atan2(p1Pos.y - vertexPos.y, p1Pos.x - vertexPos.x);
     const angle2 = Math.atan2(p2Pos.y - vertexPos.y, p2Pos.x - vertexPos.x);
-
-    const radius = 30;
-    
-    // Calculate arc points
+  
     const startX = vertexPos.x + radius * Math.cos(angle1);
     const startY = vertexPos.y + radius * Math.sin(angle1);
     const endX = vertexPos.x + radius * Math.cos(angle2);
     const endY = vertexPos.y + radius * Math.sin(angle2);
-
-    // Determine sweep direction
+  
     let sweepAngle = angle2 - angle1;
     if (sweepAngle > Math.PI) sweepAngle -= 2 * Math.PI;
     if (sweepAngle < -Math.PI) sweepAngle += 2 * Math.PI;
     const largeArc = Math.abs(sweepAngle) > Math.PI ? 1 : 0;
     const sweep = sweepAngle > 0 ? 1 : 0;
-
-    // Calculate label position (middle of arc)
+  
     const midAngle = angle1 + sweepAngle / 2;
-    const labelX = vertexPos.x + (radius + 15) * Math.cos(midAngle);
-    const labelY = vertexPos.y + (radius + 15) * Math.sin(midAngle);
-
-    // Calculate current angle in degrees
+    const labelX = vertexPos.x + (radius + 20) * Math.cos(midAngle); // 標籤離動態圓弧遠一點
+    const labelY = vertexPos.y + (radius + 20) * Math.sin(midAngle);
+  
     const degrees = Math.abs(sweepAngle) * (180 / Math.PI);
-
+  
     return {
+      // 圓弧路徑
       path: `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${endX} ${endY}`,
+      // 新增：扇形填充路徑 (從起點畫弧，再連回頂點，最後封閉)
+      fillPath: `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${endX} ${endY} L ${vertexPos.x} ${vertexPos.y} Z`,
       labelX,
       labelY,
       degrees,
