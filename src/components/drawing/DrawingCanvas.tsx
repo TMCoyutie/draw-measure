@@ -240,6 +240,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   const getLineColor = (lineId: string) => {
     const selectedArray = Array.from(selectedLineIds);
     const index = selectedArray.indexOf(lineId);
+
+    if (angleFirstLineId === lineId) return 'hsl(var(--primary))';
     
     if (index === -1) return 'hsl(var(--accent))'; // 未選取：翡翠綠
     
@@ -373,6 +375,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               const center = getLineCenter(line);
               const displayLabel = getDisplayLabel(line);
               const labelWidth = getLabelWidth(displayLabel);
+              const strokeColor = getLineColor(line.id); // 取得動態顏色
 
               return (
                 <g key={line.id}>
@@ -401,10 +404,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                     y1={startPos.y}
                     x2={endPos.x}
                     y2={endPos.y}
-                    className="measurement-line" // 移除原本的 stroke-primary class 以免干擾
-                    stroke={getLineColor(line.id)} // 使用動態顏色
+                    // 關鍵：移除 className 中的 'stroke-primary'
+                    className="measurement-line transition-all duration-200" 
+                    stroke={strokeColor} // 這裡會被 inline style 覆蓋
                     strokeWidth={isSelected || isAngleFirstLine ? 3 : 2}
-                    style={{ pointerEvents: 'none', transition: 'stroke 0.2s' }}
+                    style={{ 
+                      pointerEvents: 'none', 
+                      stroke: strokeColor // 強制套用動態顏色
+                    }}
                   />
                   {/* Line label */}
                   {center && (
@@ -430,8 +437,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                         width={labelWidth}
                         height="20"
                         rx="4"
-                        fill="hsl(var(--secondary))"
-                        className={isSelected || isAngleFirstLine ? 'fill-primary' : ''}
+                        fill={strokeColor} 
+                        style={{ transition: 'fill 0.2s' }}
                         pointerEvents="all" // 強制所有部分都可點擊
                       />
                       <text
