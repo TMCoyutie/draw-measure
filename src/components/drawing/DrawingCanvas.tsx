@@ -69,24 +69,72 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     if (!imageSize || !containerRef.current) return;
     const svgElement = containerRef.current.querySelector('svg');
     if (!svgElement) return;
-
-    // 複製一份 SVG 避免污染原始 DOM (處理樣式遺失問題)
-    const svgData = new XMLSerializer().serializeToString(svgElement);
+  
+    // 1. 複製 SVG 節點，避免影響畫面顯示
+    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
+  
+    // 2. 獲取當前環境的真實顏色 (處理 CSS 變數)
+    const style = getComputedStyle(document.documentElement);
+    const primaryColor = `hsl(${style.getPropertyValue('--primary').trim()})`;
+    const accentColor = `hsl(${style.getPropertyValue('--accent').trim()})`;
+    const secondaryColor = `hsl(${style.getPropertyValue('--secondary').trim()})`;
+  
+    // 3. 強制修復所有路徑、文字與圓點的樣式
+    clonedSvg.querySelectorAll('path, line, circle, rect, text').forEach((el) => {
+      const element = el as HTMLElement;
+      
+      // 修復線段顏色
+      if (element.classList.contains('measurement-line') || element.tagName === 'line') {
+        const isSelected = element.classList.contains('stroke-primary');
+        element.setAttribute('stroke', isSelected ? primaryColor : accentColor);
+        element.style.stroke = isSelected ? primaryColor : accentColor;
+      }
+  
+      // 修復文字
+      if (element.tagName === 'text') {
+        element.setAttribute('fill', 'white');
+        element.style.fill = 'white';
+        element.style.fontSize = '12px';
+        element.style.fontWeight = 'bold';
+        element.style.fontFamily = 'sans-serif';
+      }
+  
+      // 修復標籤背景
+      if (element.tagName === 'rect') {
+        const isPrimary = element.classList.contains('fill-primary');
+        element.setAttribute('fill', isPrimary ? primaryColor : secondaryColor);
+      }
+  
+      // 修復圓點
+      if (element.classList.contains('marker-point')) {
+        const isSelected = element.classList.contains('selected');
+        element.setAttribute('fill', isSelected ? accentColor : '#00b4d8');
+      }
+    });
+  
+    // 4. 開始轉換為圖片
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+  
     canvas.width = imageSize.width;
     canvas.height = imageSize.height;
-
+  
+    // 確保背景是透明或白色（依需求）
+    if (ctx) {
+      ctx.fillStyle = 'white'; 
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
-
+  
     img.onload = () => {
       ctx?.drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
       const link = document.createElement('a');
-      link.download = `measurement-${new Date().toISOString().split('T')[0]}.png`;
+      link.download = `measurement-export.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     };
