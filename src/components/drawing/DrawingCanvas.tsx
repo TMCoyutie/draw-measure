@@ -88,20 +88,17 @@ export const DrawingCanvas = ({
     const y = e.clientY - rect.top;
     
     if (draggingPointId && currentTool === 'cursor') {
-      // Update local drag position for real-time visual feedback
-      setDragPosition({ x, y });
+      // 優化：直接呼叫父組件更新方法，不要等到 MouseUp
+      // 這會讓 points 陣列在拖曳時就已經是最新座標
+      onPointDrag(draggingPointId, x, y);
     }
     
     onMouseMove(x, y);
   };
 
   const handleMouseUp = () => {
-    // Commit the drag position to state on mouse up
-    if (draggingPointId && dragPosition) {
-      onPointDrag(draggingPointId, dragPosition.x, dragPosition.y);
-    }
     setDraggingPointId(null);
-    setDragPosition(null);
+    // setDragPosition(null); // 如果你決定移除本地 dragPosition 狀態
   };
 
   const handlePointMouseDown = (e: React.MouseEvent, point: Point) => {
