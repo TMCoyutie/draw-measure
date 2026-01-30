@@ -328,6 +328,14 @@ export const DrawingCanvas = ({
 
               return (
                 <g key={angle.id}>
+                  {/* 新增：半透明扇形填充層 */}
+                  <path
+                    d={arcData.fillPath}
+                    fill={isSelected ? 'hsl(var(--primary))' : 'hsl(var(--accent))'}
+                    fillOpacity={0.2} // 設定 20% 透明度
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  
                   {/* Invisible wider arc for click detection */}
                   <path
                     d={arcData.path}
