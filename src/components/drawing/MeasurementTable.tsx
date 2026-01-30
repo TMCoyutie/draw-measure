@@ -67,6 +67,7 @@ export const MeasurementTable = ({
               {lines.map(line => {
                 const length = calculateLength(line);
                 const isSelected = selectedLineIds.has(line.id);
+                const labelBgColor = getLineColor(line.id);
                 
                 return (
                   <div
@@ -74,12 +75,24 @@ export const MeasurementTable = ({
                     onClick={(e) => onSelectLine(line.id, e.ctrlKey || e.metaKey)}
                     className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
                       isSelected 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'hover:bg-white/10'
+                        ? 'bg-white/10 ring-1 ring-white/20' 
+                        : 'hover:bg-white/5'
                     }`}
                   >
-                    <span className="font-mono font-bold text-lg">{line.label}</span>
-                    <span className="text-sm font-medium">
+                    <div 
+                      className="w-7 h-7 rounded-md flex items-center justify-center text-sm font-black text-white shadow-sm transition-colors"
+                      style={{ backgroundColor: labelBgColor }}
+                    >
+                      {line.label}
+                    </div>
+          
+                    {/* 線段代碼（選填，若想保留原本的大字可以加在這裡） */}
+                    <span className="flex-1 font-mono text-sm font-medium text-slate-300">
+                      線段 {line.label}
+                    </span>
+          
+                    {/* 長度數值 */}
+                    <span className="text-sm font-mono font-medium text-slate-400">
                       {length.toFixed(1)} px
                     </span>
                   </div>
