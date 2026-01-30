@@ -237,6 +237,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     };
   };
 
+  const getLineColor = (lineId: string) => {
+    const selectedArray = Array.from(selectedLineIds);
+    const index = selectedArray.indexOf(lineId);
+    
+    if (index === -1) return 'hsl(var(--accent))'; // 未選取：翡翠綠
+    
+    // 第一條選取：天藍色，第二條選取：深藍色
+    return index === 0 ? '#7dd3fc' : '#0369a1'; 
+  };
+
   // Calculate line length considering drag position
   const getLineLengthWithDrag = (line: Line): number => {
     const start = getPointById(line.startPointId);
@@ -391,9 +401,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                     y1={startPos.y}
                     x2={endPos.x}
                     y2={endPos.y}
-                    className={`measurement-line ${isSelected || isAngleFirstLine ? 'stroke-primary' : ''}`}
+                    className="measurement-line" // 移除原本的 stroke-primary class 以免干擾
+                    stroke={getLineColor(line.id)} // 使用動態顏色
                     strokeWidth={isSelected || isAngleFirstLine ? 3 : 2}
-                    style={{ pointerEvents: 'none' }}
+                    style={{ pointerEvents: 'none', transition: 'stroke 0.2s' }}
                   />
                   {/* Line label */}
                   {center && (
