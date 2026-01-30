@@ -88,12 +88,11 @@ export const DrawingCanvas = ({
     const y = e.clientY - rect.top;
     
     if (draggingPointId && currentTool === 'cursor') {
-      // 1. 立即更新本地狀態，這保證了「點」會黏在滑鼠上
-      setDragPosition({ x, y });
-  
-      // 2. 實時通知父組件（線段長度計算依賴於此）
-      // 如果這裡會造成卡頓，可以用 requestAnimationFrame 包起來
-      onPointDrag(draggingPointId, x, y);
+      // 使用 requestAnimationFrame 確保流暢度
+      window.requestAnimationFrame(() => {
+        setDragPosition({ x, y }); // 負責讓「點」立即動
+        onPointDrag(draggingPointId, x, y); // 負責讓父組件的「線」跟著動
+      });
     }
     
     onMouseMove(x, y);
