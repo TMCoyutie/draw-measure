@@ -12,6 +12,8 @@ const Index = () => {
   
   const [image, setImage] = useState<string | null>(null);
   const [showLengthLabels, setShowLengthLabels] = useState(false);
+
+  const [isRatioSwapped, setIsRatioSwapped] = useState(false);
   
   const {
     points,
@@ -42,6 +44,10 @@ const Index = () => {
     hasSelection,
   } = useDrawingState();
 
+  useEffect(() => {
+    if (selectedLineIds.size !== 2) setIsRatioSwapped(false);
+  }, [selectedLineIds.size]);
+  
   // Handle escape key to cancel active drawing and delete key to delete selected
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,6 +67,52 @@ const Index = () => {
 
   const hasData = points.length > 0 || lines.length > 0 || angles.length > 0;
 
+  // 計算比例的資料
+  const renderRatioSection = () => {
+    if (selectedLineIds.size !== 2) return null;
+  
+    const selectedArray = Array.from(selectedLineIds);
+    const lineA = lines.find(l => l.id === selectedArray[0]);
+    const lineB = lines.find(l => l.id === selectedArray[1]);
+  
+    if (!lineA || !lineB) return null;
+  
+    const lenA = calculateLineLength(lineA);
+    const lenB = calculateLineLength(lineB);
+  
+    const first = isRatioSwapped ? lineB : lineA;
+    const second = isRatioSwapped ? lineA : lineB;
+    const valFirst = isRatioSwapped ? lenB : lenA;
+    const valSecond = isRatioSwapped ? lenA : lenB;
+  
+    return (
+      <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-3 mb-4 animate-in fade-in slide-in-from-top-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">比例分析</span>
+          <button 
+            onClick={() => setIsRatioSwapped(!isRatioSwapped)}
+            className="p-1 hover:bg-slate-800 rounded transition-colors"
+            title="切換分子分母"
+          >
+            <ArrowLeftRight size={14} className="text-blue-400" />
+          </button>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-mono truncate max-w-[100px]" style={{ color: Array.from(selectedLineIds).indexOf(first.id) === 0 ? '#7dd3fc' : '#0369a1' }}>
+            {first.label}
+          </span>
+          <span className="text-slate-500 text-xs">/</span>
+          <span className="text-sm font-mono truncate max-w-[100px]" style={{ color: Array.from(selectedLineIds).indexOf(second.id) === 0 ? '#7dd3fc' : '#0369a1' }}>
+            {second.label}
+          </span>
+          <span className="ml-auto text-lg font-bold text-white">
+            {(valFirst / valSecond).toFixed(3)}
+          </span>
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <div className="flex h-screen bg-background">
       {/* Main Canvas Area */}
@@ -141,6 +193,9 @@ const Index = () => {
           angleFirstLineId={angleFirstLineId}
         />
 
+        {/* 插入比例面板 */}
+        {renderRatioSection()}
+        
         <MeasurementTable
           lines={lines}
           angles={angles}
