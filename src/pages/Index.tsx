@@ -226,6 +226,12 @@ const Index = () => {
           onSelectAngle={selectAngle}
           showLengthLabels={showLengthLabels}
           onToggleLengthLabels={() => setShowLengthLabels(prev => !prev)}
+          getLineColor={(id) => {
+            const selectedArray = Array.from(selectedLineIds);
+            const index = selectedArray.indexOf(id);
+            if (index === -1) return 'hsl(var(--accent))'; // 預設翡翠綠
+            return index === 0 ? '#7dd3fc' : '#0369a1'; // 淺藍與深藍
+          }}
         />
       </aside>
     </div>
