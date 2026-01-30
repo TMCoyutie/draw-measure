@@ -345,8 +345,14 @@ export const DrawingCanvas = ({
                       transform={`translate(${center.x}, ${center.y})`}
                       style={{ cursor: 'pointer' }}
                       onClick={(e) => {
-                        e.stopPropagation(); // 阻止觸發畫布取消選取
-                        if (currentTool === 'cursor' && !draggingPointId) {
+                        e.stopPropagation(); // 阻止事件冒泡到畫布
+                  
+                        // 關鍵修正：判斷目前的工具模式
+                        if (currentTool === 'angle') {
+                          // 如果是角度工具，點擊標籤等於點擊該線段來建立角度
+                          onAngleToolLineClick(line.id);
+                        } else if (currentTool === 'cursor' && !draggingPointId) {
+                          // 如果是選取工具，點擊標籤等於選取線段
                           onLineClick(line.id, e.ctrlKey || e.metaKey);
                         }
                       }}
