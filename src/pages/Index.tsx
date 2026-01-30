@@ -94,35 +94,38 @@ const Index = () => {
   
     return (
       <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-3 mb-4">
-        <div className="flex items-center justify-between mb-3 px-1"> {/* 增加 px-1 對齊下方內容 */}
-          {/* 1. 提升「比例分析」文字大小與字重 */}
-          <span className="text-xs uppercase tracking-widest text-slate-300 font-black">
+        <div className="flex items-center justify-between mb-1.5 px-1">
+          <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
             比例分析
           </span>
           <button 
             onClick={(e) => {
-              e.preventDefault(); // 防止觸發其他行為
+              e.preventDefault();
               setIsRatioSwapped(!isRatioSwapped);
             }}
-            className="w-9 h-9 flex items-center justify-center hover:bg-blue-500/20 active:bg-blue-500/40 rounded-full transition-all group border border-slate-700 hover:border-blue-500/50"
+            className="w-8 h-8 flex items-center justify-center hover:bg-blue-500/20 active:bg-blue-500/40 rounded-full transition-all group border border-slate-700/50 hover:border-blue-500/40"
             title="切換分子分母"
           >
             <ArrowLeftRight 
-              size={22} 
-              strokeWidth={2.5} 
-              className="text-blue-400 group-hover:text-blue-200 group-hover:scale-110 transition-all" 
+              size={18} 
+              strokeWidth={2} 
+              className="text-blue-400 group-hover:text-blue-300 transition-colors" 
             />
           </button>
         </div>
-        <div className="flex items-center gap-3 px-1">
-          <span className="text-base font-black font-mono" style={{ color: getLabelColor(first.id) }}>
-            {first.label}
-          </span>
-          <span className="text-slate-500 font-bold">/</span>
-          <span className="text-base font-black font-mono" style={{ color: getLabelColor(second.id) }}>
-            {second.label}
-          </span>
-          <span className="ml-auto text-2xl font-black text-white tracking-tighter tabular-nums">
+        <div className="flex items-center gap-2 px-1 -mt-1"> {/* 使用 -mt-1 向上擠壓行距 */}
+          <div className="flex items-center gap-1.5"> {/* 緊縮分子分母間距 */}
+            <span className="text-sm font-bold font-mono" style={{ color: getLabelColor(first.id) }}>
+              {first.label}
+            </span>
+            <span className="text-slate-500 text-xs font-bold">/</span>
+            <span className="text-sm font-bold font-mono" style={{ color: getLabelColor(second.id) }}>
+              {second.label}
+            </span>
+          </div>
+          
+          {/* 比例數值縮小到 text-xl，保持視覺重點但不突兀 */}
+          <span className="ml-auto text-xl font-black text-white tabular-nums tracking-tight">
             {(valFirst / valSecond).toFixed(3)}
           </span>
         </div>
