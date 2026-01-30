@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { Point, Line, Angle, ToolType } from '@/types/drawing';
 
 interface DrawingCanvasProps {
@@ -27,36 +27,77 @@ interface DrawingCanvasProps {
   calculateLineLength: (line: Line) => number;
 }
 
-export const DrawingCanvas = ({
-  image,
-  points,
-  lines,
-  angles,
-  activePointId,
-  angleFirstLineId,
-  selectedPointIds,
-  selectedLineIds,
-  selectedAngleIds,
-  currentTool,
-  mousePosition,
-  showLengthLabels,
-  onCanvasClick,
-  onMouseMove,
-  onMouseLeave,
-  onPointClick,
-  onLineClick,
-  onAngleClick,
-  onAngleToolLineClick,
-  onClearSelection,
-  onPointDrag,
-  getPointById,
-  calculateLineLength,
-}: DrawingCanvasProps) => {
+// 定義暴露給父組件的方法介面
+export interface DrawingCanvasRef {
+  exportImage: () => void;
+}
+
+export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((props, ref) => {
+  const {
+    image,
+    points,
+    lines,
+    angles,
+    activePointId,
+    angleFirstLineId,
+    selectedPointIds,
+    selectedLineIds,
+    selectedAngleIds,
+    currentTool,
+    mousePosition,
+    showLengthLabels,
+    onCanvasClick,
+    onMouseMove,
+    onMouseLeave,
+    onPointClick,
+    onLineClick,
+    onAngleClick,
+    onAngleToolLineClick,
+    onClearSelection,
+    onPointDrag,
+    getPointById,
+    calculateLineLength,
+  } = props;
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
 
+  // 匯出邏輯
+  const handleExportImage = () => {
+    if (!imageSize || !containerRef.current) return;
+    const svgElement = containerRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    // 複製一份 SVG 避免污染原始 DOM (處理樣式遺失問題)
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    canvas.width = imageSize.width;
+    canvas.height = imageSize.height;
+
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = () => {
+      ctx?.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      const link = document.createElement('a');
+      link.download = `measurement-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+    img.src = url;
+  };
+
+  // 暴露方法
+  useImperativeHandle(ref, () => ({
+    exportImage: handleExportImage
+  }));
+  
   useEffect(() => {
     if (image) {
       const img = new Image();
@@ -474,4 +515,6 @@ export const DrawingCanvas = ({
       )}
     </div>
   );
-};
+});
+
+DrawingCanvas.displayName = 'DrawingCanvas';
