@@ -82,18 +82,20 @@ export const DrawingCanvas = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
+    if (!draggingPointId || currentTool !== 'cursor') {
+      onMouseMove(e.clientX - e.currentTarget.getBoundingClientRect().left, e.clientY - e.currentTarget.getBoundingClientRect().top);
+      return;
+    }
+  
+    const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+  
+    // 1. 優先更新本地位置 (視覺最快)
+    setDragPosition({ x, y });
     
-    if (draggingPointId && currentTool === 'cursor') {
-      // 使用 requestAnimationFrame 確保流暢度
-      window.requestAnimationFrame(() => {
-        setDragPosition({ x, y }); // 負責讓「點」立即動
-        onPointDrag(draggingPointId, x, y); // 負責讓父組件的「線」跟著動
-      });
-    }
+    // 2. 同步通知父組件 (讓線段跟上)
+    onPointDrag(draggingPointId, x, y);
     
     onMouseMove(x, y);
   };
