@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDrawingState } from '@/hooks/useDrawingState';
-import { DrawingCanvas } from '@/components/drawing/DrawingCanvas';
+import { DrawingCanvas, DrawingCanvasRef } from '@/components/drawing/DrawingCanvas';
 import { Toolbar } from '@/components/drawing/Toolbar';
 import { MeasurementTable } from '@/components/drawing/MeasurementTable';
 import { ImageUploader } from '@/components/drawing/ImageUploader';
 import { Ruler } from 'lucide-react';
 
 const Index = () => {
+  // 1. 建立給 Canvas 使用的 Ref
+  const canvasRef = useRef<DrawingCanvasRef>(null);
+  
   const [image, setImage] = useState<string | null>(null);
   const [showLengthLabels, setShowLengthLabels] = useState(false);
   
@@ -79,6 +82,7 @@ const Index = () => {
 
         {/* Canvas */}
         <DrawingCanvas
+          ref={canvasRef} // 這裡務必綁定 Ref
           image={image}
           points={points}
           lines={lines}
@@ -109,11 +113,23 @@ const Index = () => {
       </div>
 
       {/* Right Sidebar */}
-      <aside className="w-64 toolbar-panel border-l border-white/10 p-4 flex flex-col gap-6">
-        <ImageUploader 
-          onImageUpload={setImage} 
-          hasImage={image !== null} 
-        />
+      <aside className="w-64 toolbar-panel border-l border-white/10 p-4 flex flex-col gap-6 overflow-y-auto">
+        <div className="flex flex-col gap-2">
+          {/* 原有的圖片上傳器 */}
+          <ImageUploader 
+            onImageUpload={setImage} 
+            hasImage={image !== null} 
+          />
+          
+          {/* 2. 新增的匯出按鈕：緊貼在 Uploader 下方 */}
+          <button 
+            onClick={() => canvasRef.current?.exportImage()}
+            disabled={!image}
+            className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:bg-slate-800 disabled:cursor-not-allowed transition-all rounded-md text-sm font-bold text-white shadow-sm mt-1"
+          >
+            <span>💾 匯出測量圖片</span>
+          </button>
+        </div>
         
         <Toolbar
           currentTool={currentTool}
