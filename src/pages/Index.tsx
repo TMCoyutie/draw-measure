@@ -94,27 +94,28 @@ const Index = () => {
   
     return (
       <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-3 mb-4">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">比例分析</span>
           <button 
             onClick={(e) => {
               e.preventDefault(); // 防止觸發其他行為
               setIsRatioSwapped(!isRatioSwapped);
             }}
-            className="p-1 hover:bg-slate-800 rounded transition-colors"
+            className="p-1.5 hover:bg-slate-800 active:bg-slate-700 rounded-md transition-all border border-transparent hover:border-blue-500/30 group"
+            title="切換分子分母"
           >
-            <ArrowLeftRight size={14} className="text-blue-400" />
+            <ArrowLeftRight size={18} className="text-blue-400 group-hover:text-blue-300 transition-colors" />
           </button>
         </div>
-        <div className="flex items-baseline gap-2 overflow-hidden">
-          <span className="text-sm font-mono truncate" style={{ color: getLabelColor(first.id) }}>
+        <div className="flex items-baseline gap-3 overflow-hidden px-1"> {/* 增加 gap-3 與 px-1 */}
+          <span className="text-sm font-bold font-mono truncate" style={{ color: getLabelColor(first.id) }}>
             {first.label}
           </span>
           <span className="text-slate-500 text-xs">/</span>
-          <span className="text-sm font-mono truncate" style={{ color: getLabelColor(second.id) }}>
+          <span className="text-sm font-bold font-mono truncate" style={{ color: getLabelColor(second.id) }}>
             {second.label}
           </span>
-          <span className="ml-auto text-lg font-bold text-white">
+          <span className="ml-auto text-xl font-black text-white tabular-nums"> {/* 使用 text-xl 與 tabular-nums */}
             {(valFirst / valSecond).toFixed(3)}
           </span>
         </div>
