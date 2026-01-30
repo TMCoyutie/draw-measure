@@ -13,23 +13,29 @@ const Index = () => {
   const {
     points,
     lines,
+    angles,
     currentTool,
     setCurrentTool,
     activePointId,
+    angleFirstLineId,
     selectedPointIds,
     selectedLineIds,
+    selectedAngleIds,
     mousePosition,
     setMousePosition,
     handleCanvasClick,
+    handleAngleToolLineClick,
     deleteSelected,
     clearAll,
     selectPoint,
     selectLine,
+    selectAngle,
     clearSelection,
     cancelActivePoint,
     getPointById,
     calculateLineLength,
     updatePointPosition,
+    recalculateAngles,
     hasSelection,
   } = useDrawingState();
 
@@ -50,7 +56,7 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cancelActivePoint, clearSelection, deleteSelected, hasSelection]);
 
-  const hasData = points.length > 0 || lines.length > 0;
+  const hasData = points.length > 0 || lines.length > 0 || angles.length > 0;
 
   return (
     <div className="flex h-screen bg-background">
@@ -76,9 +82,12 @@ const Index = () => {
           image={image}
           points={points}
           lines={lines}
+          angles={angles}
           activePointId={activePointId}
+          angleFirstLineId={angleFirstLineId}
           selectedPointIds={selectedPointIds}
           selectedLineIds={selectedLineIds}
+          selectedAngleIds={selectedAngleIds}
           currentTool={currentTool}
           mousePosition={mousePosition}
           showLengthLabels={showLengthLabels}
@@ -87,8 +96,13 @@ const Index = () => {
           onMouseLeave={() => setMousePosition(null)}
           onPointClick={selectPoint}
           onLineClick={selectLine}
+          onAngleClick={selectAngle}
+          onAngleToolLineClick={handleAngleToolLineClick}
           onClearSelection={clearSelection}
-          onPointDrag={updatePointPosition}
+          onPointDrag={(pointId, x, y) => {
+            updatePointPosition(pointId, x, y);
+            recalculateAngles();
+          }}
           getPointById={getPointById}
           calculateLineLength={calculateLineLength}
         />
@@ -108,13 +122,17 @@ const Index = () => {
           onDelete={deleteSelected}
           onClearAll={clearAll}
           hasData={hasData}
+          angleFirstLineId={angleFirstLineId}
         />
 
         <MeasurementTable
           lines={lines}
+          angles={angles}
           calculateLength={calculateLineLength}
           selectedLineIds={selectedLineIds}
+          selectedAngleIds={selectedAngleIds}
           onSelectLine={selectLine}
+          onSelectAngle={selectAngle}
           showLengthLabels={showLengthLabels}
           onToggleLengthLabels={() => setShowLengthLabels(prev => !prev)}
         />

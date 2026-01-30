@@ -11,4 +11,13 @@ export interface Line {
   endPointId: string;
 }
 
-export type ToolType = 'cursor' | 'marker';
+export interface Angle {
+  id: string;
+  label: string;
+  line1Id: string;
+  line2Id: string;
+  vertexPointId: string; // The common point between the two lines
+  degrees: number;
+}
+
+export type ToolType = 'cursor' | 'marker' | 'angle';

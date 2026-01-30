@@ -1,21 +1,27 @@
-import { Line } from '@/types/drawing';
+import { Line, Angle } from '@/types/drawing';
 import { ArrowUpDown, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MeasurementTableProps {
   lines: Line[];
+  angles: Angle[];
   calculateLength: (line: Line) => number;
   selectedLineIds: Set<string>;
+  selectedAngleIds: Set<string>;
   onSelectLine: (lineId: string, ctrlKey: boolean) => void;
+  onSelectAngle: (angleId: string, ctrlKey: boolean) => void;
   showLengthLabels: boolean;
   onToggleLengthLabels: () => void;
 }
 
 export const MeasurementTable = ({ 
   lines, 
+  angles,
   calculateLength, 
   selectedLineIds,
+  selectedAngleIds,
   onSelectLine,
+  onSelectAngle,
   showLengthLabels,
   onToggleLengthLabels,
 }: MeasurementTableProps) => {
@@ -46,33 +52,70 @@ export const MeasurementTable = ({
         </Button>
       </div>
       
-      {lines.length === 0 ? (
+      {lines.length === 0 && angles.length === 0 ? (
         <p className="text-sm text-toolbar-foreground/50 italic">
-          尚無線段資料
+          尚無測量資料
         </p>
       ) : (
         <div className="space-y-1 max-h-[300px] overflow-y-auto">
-          {lines.map(line => {
-            const length = calculateLength(line);
-            const isSelected = selectedLineIds.has(line.id);
-            
-            return (
-              <div
-                key={line.id}
-                onClick={(e) => onSelectLine(line.id, e.ctrlKey || e.metaKey)}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
-                  isSelected 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-white/10'
-                }`}
-              >
-                <span className="font-mono font-bold text-lg">{line.label}</span>
-                <span className="text-sm font-medium">
-                  {length.toFixed(1)} px
-                </span>
-              </div>
-            );
-          })}
+          {/* Lines section */}
+          {lines.length > 0 && (
+            <>
+              <p className="text-xs text-toolbar-foreground/50 uppercase tracking-wider px-1 pt-1">
+                線段
+              </p>
+              {lines.map(line => {
+                const length = calculateLength(line);
+                const isSelected = selectedLineIds.has(line.id);
+                
+                return (
+                  <div
+                    key={line.id}
+                    onClick={(e) => onSelectLine(line.id, e.ctrlKey || e.metaKey)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
+                      isSelected 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="font-mono font-bold text-lg">{line.label}</span>
+                    <span className="text-sm font-medium">
+                      {length.toFixed(1)} px
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          )}
+          
+          {/* Angles section */}
+          {angles.length > 0 && (
+            <>
+              <p className="text-xs text-toolbar-foreground/50 uppercase tracking-wider px-1 pt-3">
+                角度
+              </p>
+              {angles.map(angle => {
+                const isSelected = selectedAngleIds.has(angle.id);
+                
+                return (
+                  <div
+                    key={angle.id}
+                    onClick={(e) => onSelectAngle(angle.id, e.ctrlKey || e.metaKey)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
+                      isSelected 
+                        ? 'bg-accent text-accent-foreground' 
+                        : 'hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="font-mono font-bold text-lg">{angle.label}</span>
+                    <span className="text-sm font-medium">
+                      {angle.degrees.toFixed(1)}°
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
     </div>

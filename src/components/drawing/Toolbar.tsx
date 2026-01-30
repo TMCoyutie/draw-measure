@@ -1,4 +1,4 @@
-import { MousePointer2, Crosshair, Trash2, XCircle } from 'lucide-react';
+import { MousePointer2, Crosshair, Trash2, XCircle, Triangle } from 'lucide-react';
 import { ToolType } from '@/types/drawing';
 import { Button } from '@/components/ui/button';
 
@@ -9,6 +9,7 @@ interface ToolbarProps {
   onDelete: () => void;
   onClearAll: () => void;
   hasData: boolean;
+  angleFirstLineId: string | null;
 }
 
 export const Toolbar = ({ 
@@ -18,6 +19,7 @@ export const Toolbar = ({
   onDelete,
   onClearAll,
   hasData,
+  angleFirstLineId,
 }: ToolbarProps) => {
   return (
     <div className="space-y-2">
@@ -40,6 +42,20 @@ export const Toolbar = ({
         <Crosshair size={18} />
         <span>標點工具</span>
       </button>
+
+      <button
+        className={`tool-button w-full ${currentTool === 'angle' ? 'active' : ''}`}
+        onClick={() => onToolChange('angle')}
+      >
+        <Triangle size={18} />
+        <span>角度工具</span>
+      </button>
+
+      {currentTool === 'angle' && (
+        <p className="text-xs text-primary/80 pl-2">
+          {angleFirstLineId ? '請選擇第二條線段' : '請選擇第一條線段'}
+        </p>
+      )}
 
       <div className="pt-4 border-t border-white/10 mt-4 space-y-2">
         <Button

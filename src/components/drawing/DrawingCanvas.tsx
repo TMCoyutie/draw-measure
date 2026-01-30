@@ -1,13 +1,16 @@
 import { useRef, useEffect, useState } from 'react';
-import { Point, Line, ToolType } from '@/types/drawing';
+import { Point, Line, Angle, ToolType } from '@/types/drawing';
 
 interface DrawingCanvasProps {
   image: string | null;
   points: Point[];
   lines: Line[];
+  angles: Angle[];
   activePointId: string | null;
+  angleFirstLineId: string | null;
   selectedPointIds: Set<string>;
   selectedLineIds: Set<string>;
+  selectedAngleIds: Set<string>;
   currentTool: ToolType;
   mousePosition: { x: number; y: number } | null;
   showLengthLabels: boolean;
@@ -16,6 +19,8 @@ interface DrawingCanvasProps {
   onMouseLeave: () => void;
   onPointClick: (pointId: string, ctrlKey: boolean) => void;
   onLineClick: (lineId: string, ctrlKey: boolean) => void;
+  onAngleClick: (angleId: string, ctrlKey: boolean) => void;
+  onAngleToolLineClick: (lineId: string) => void;
   onClearSelection: () => void;
   onPointDrag: (pointId: string, x: number, y: number) => void;
   getPointById: (id: string) => Point | undefined;
@@ -26,9 +31,12 @@ export const DrawingCanvas = ({
   image,
   points,
   lines,
+  angles,
   activePointId,
+  angleFirstLineId,
   selectedPointIds,
   selectedLineIds,
+  selectedAngleIds,
   currentTool,
   mousePosition,
   showLengthLabels,
@@ -37,6 +45,8 @@ export const DrawingCanvas = ({
   onMouseLeave,
   onPointClick,
   onLineClick,
+  onAngleClick,
+  onAngleToolLineClick,
   onClearSelection,
   onPointDrag,
   getPointById,
@@ -146,6 +156,63 @@ export const DrawingCanvas = ({
     return Math.max(24, charCount * 10 + 8);
   };
 
+  // Calculate angle arc path for display
+  const getAngleArc = (angle: Angle) => {
+    const vertex = getPointById(angle.vertexPointId);
+    const line1 = lines.find(l => l.id === angle.line1Id);
+    const line2 = lines.find(l => l.id === angle.line2Id);
+    
+    if (!vertex || !line1 || !line2) return null;
+
+    const vertexPos = getPointPosition(vertex);
+    
+    // Get the other points
+    const p1Id = line1.startPointId === angle.vertexPointId ? line1.endPointId : line1.startPointId;
+    const p2Id = line2.startPointId === angle.vertexPointId ? line2.endPointId : line2.startPointId;
+    
+    const p1 = getPointById(p1Id);
+    const p2 = getPointById(p2Id);
+    
+    if (!p1 || !p2) return null;
+
+    const p1Pos = getPointPosition(p1);
+    const p2Pos = getPointPosition(p2);
+
+    // Calculate angles from vertex
+    const angle1 = Math.atan2(p1Pos.y - vertexPos.y, p1Pos.x - vertexPos.x);
+    const angle2 = Math.atan2(p2Pos.y - vertexPos.y, p2Pos.x - vertexPos.x);
+
+    const radius = 30;
+    
+    // Calculate arc points
+    const startX = vertexPos.x + radius * Math.cos(angle1);
+    const startY = vertexPos.y + radius * Math.sin(angle1);
+    const endX = vertexPos.x + radius * Math.cos(angle2);
+    const endY = vertexPos.y + radius * Math.sin(angle2);
+
+    // Determine sweep direction
+    let sweepAngle = angle2 - angle1;
+    if (sweepAngle > Math.PI) sweepAngle -= 2 * Math.PI;
+    if (sweepAngle < -Math.PI) sweepAngle += 2 * Math.PI;
+    const largeArc = Math.abs(sweepAngle) > Math.PI ? 1 : 0;
+    const sweep = sweepAngle > 0 ? 1 : 0;
+
+    // Calculate label position (middle of arc)
+    const midAngle = angle1 + sweepAngle / 2;
+    const labelX = vertexPos.x + (radius + 15) * Math.cos(midAngle);
+    const labelY = vertexPos.y + (radius + 15) * Math.sin(midAngle);
+
+    // Calculate current angle in degrees
+    const degrees = Math.abs(sweepAngle) * (180 / Math.PI);
+
+    return {
+      path: `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${endX} ${endY}`,
+      labelX,
+      labelY,
+      degrees,
+    };
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -160,7 +227,7 @@ export const DrawingCanvas = ({
           <svg
             width={imageSize?.width || 800}
             height={imageSize?.height || 600}
-            className={`${currentTool === 'marker' ? 'cursor-crosshair' : draggingPointId ? 'cursor-grabbing' : 'cursor-default'}`}
+            className={`${currentTool === 'marker' ? 'cursor-crosshair' : currentTool === 'angle' ? 'cursor-pointer' : draggingPointId ? 'cursor-grabbing' : 'cursor-default'}`}
             onClick={handleClick}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -187,6 +254,7 @@ export const DrawingCanvas = ({
               if (!startPoint || !endPoint) return null;
 
               const isSelected = selectedLineIds.has(line.id);
+              const isAngleFirstLine = angleFirstLineId === line.id;
               const startPos = getPointPosition(startPoint);
               const endPos = getPointPosition(endPoint);
               const center = getLineCenter(line);
@@ -204,12 +272,15 @@ export const DrawingCanvas = ({
                     stroke="transparent"
                     strokeWidth={16}
                     onClick={(e) => {
-                      if (currentTool === 'cursor' && !draggingPointId) {
+                      if (currentTool === 'angle') {
+                        e.stopPropagation();
+                        onAngleToolLineClick(line.id);
+                      } else if (currentTool === 'cursor' && !draggingPointId) {
                         e.stopPropagation();
                         onLineClick(line.id, e.ctrlKey || e.metaKey);
                       }
                     }}
-                    style={{ cursor: currentTool === 'cursor' ? 'pointer' : 'inherit' }}
+                    style={{ cursor: currentTool === 'cursor' || currentTool === 'angle' ? 'pointer' : 'inherit' }}
                   />
                   {/* Visible line */}
                   <line
@@ -217,8 +288,8 @@ export const DrawingCanvas = ({
                     y1={startPos.y}
                     x2={endPos.x}
                     y2={endPos.y}
-                    className={`measurement-line ${isSelected ? 'stroke-primary' : ''}`}
-                    strokeWidth={isSelected ? 3 : 2}
+                    className={`measurement-line ${isSelected || isAngleFirstLine ? 'stroke-primary' : ''}`}
+                    strokeWidth={isSelected || isAngleFirstLine ? 3 : 2}
                     style={{ pointerEvents: 'none' }}
                   />
                   {/* Line label */}
@@ -231,7 +302,7 @@ export const DrawingCanvas = ({
                         height="20"
                         rx="4"
                         fill="hsl(var(--secondary))"
-                        className={isSelected ? 'fill-primary' : ''}
+                        className={isSelected || isAngleFirstLine ? 'fill-primary' : ''}
                       />
                       <text
                         textAnchor="middle"
@@ -243,6 +314,60 @@ export const DrawingCanvas = ({
                       </text>
                     </g>
                   )}
+                </g>
+              );
+            })}
+
+            {/* Angle arcs */}
+            {angles.map(angle => {
+              const arcData = getAngleArc(angle);
+              if (!arcData) return null;
+              
+              const isSelected = selectedAngleIds.has(angle.id);
+
+              return (
+                <g key={angle.id}>
+                  {/* Invisible wider arc for click detection */}
+                  <path
+                    d={arcData.path}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    onClick={(e) => {
+                      if (currentTool === 'cursor' && !draggingPointId) {
+                        e.stopPropagation();
+                        onAngleClick(angle.id, e.ctrlKey || e.metaKey);
+                      }
+                    }}
+                    style={{ cursor: currentTool === 'cursor' ? 'pointer' : 'inherit' }}
+                  />
+                  {/* Visible arc */}
+                  <path
+                    d={arcData.path}
+                    fill="none"
+                    stroke={isSelected ? 'hsl(var(--primary))' : 'hsl(var(--accent))'}
+                    strokeWidth={isSelected ? 3 : 2}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Angle label */}
+                  <g transform={`translate(${arcData.labelX}, ${arcData.labelY})`}>
+                    <rect
+                      x="-20"
+                      y="-10"
+                      width="40"
+                      height="20"
+                      rx="4"
+                      fill={isSelected ? 'hsl(var(--primary))' : 'hsl(var(--accent))'}
+                    />
+                    <text
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      className="fill-white text-xs font-bold select-none"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {arcData.degrees.toFixed(1)}°
+                    </text>
+                  </g>
                 </g>
               );
             })}
