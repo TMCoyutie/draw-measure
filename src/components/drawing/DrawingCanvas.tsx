@@ -88,8 +88,11 @@ export const DrawingCanvas = ({
     const y = e.clientY - rect.top;
     
     if (draggingPointId && currentTool === 'cursor') {
-      // 優化：直接呼叫父組件更新方法，不要等到 MouseUp
-      // 這會讓 points 陣列在拖曳時就已經是最新座標
+      // 1. 立即更新本地狀態，這保證了「點」會黏在滑鼠上
+      setDragPosition({ x, y });
+  
+      // 2. 實時通知父組件（線段長度計算依賴於此）
+      // 如果這裡會造成卡頓，可以用 requestAnimationFrame 包起來
       onPointDrag(draggingPointId, x, y);
     }
     
