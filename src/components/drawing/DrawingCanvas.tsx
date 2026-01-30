@@ -349,52 +349,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               width={imageSize?.width || 800}
               height={imageSize?.height || 600}
             />
-
-            {/* Points */}
-            {/* 找到渲染 Points 的地方 */}
-            {points.map(point => {
-              const isActive = activePointId === point.id;
-              const isSelected = selectedPointIds.has(point.id);
-              const isDragging = draggingPointId === point.id;
-              const pos = getPointPosition(point);
-            
-              return (
-                <g 
-                  key={point.id}
-                  // 關鍵修改：將座標套用在 group 的 style 上，並使用 transform
-                  // 這樣可以強迫 GPU 處理位移，不經過 React 的屬性計算
-                  style={{
-                    transform: `translate(${pos.x}px, ${pos.y}px)`,
-                    transition: isDragging ? 'none' : 'transform 0.1s ease-out', // 拖曳時關閉延遲
-                    willChange: 'transform'
-                  }}
-                >
-                  {/* 這裡的 cx, cy 全部改為 0，因為位置由上面的 translate 控制 */}
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={20}
-                    fill="transparent"
-                    style={{ cursor: currentTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'inherit' }}
-                    onMouseDown={(e) => handlePointMouseDown(e, point)}
-                    onClick={(e) => {
-                      if (currentTool === 'cursor' && !draggingPointId) {
-                        e.stopPropagation();
-                        onPointClick(point.id, e.ctrlKey || e.metaKey);
-                      }
-                    }}
-                  />
-                  <circle
-                    cx={0}
-                    cy={0}
-                    r={isActive || isSelected ? 8 : 6}
-                    className={`marker-point ${isSelected ? 'selected' : ''}`}
-                    fill={isActive ? 'hsl(var(--accent))' : 'hsl(var(--marker-color))'}
-                    style={{ pointerEvents: 'none' }}
-                  />
-                </g>
-              );
-            })}
             
             {/* Completed lines */}
             {lines.map(line => {
@@ -571,6 +525,52 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                 className="animate-pulse-glow"
               />
             )}
+
+            {/* Points */}
+            {/* 找到渲染 Points 的地方 */}
+            {points.map(point => {
+              const isActive = activePointId === point.id;
+              const isSelected = selectedPointIds.has(point.id);
+              const isDragging = draggingPointId === point.id;
+              const pos = getPointPosition(point);
+            
+              return (
+                <g 
+                  key={point.id}
+                  // 關鍵修改：將座標套用在 group 的 style 上，並使用 transform
+                  // 這樣可以強迫 GPU 處理位移，不經過 React 的屬性計算
+                  style={{
+                    transform: `translate(${pos.x}px, ${pos.y}px)`,
+                    transition: isDragging ? 'none' : 'transform 0.1s ease-out', // 拖曳時關閉延遲
+                    willChange: 'transform'
+                  }}
+                >
+                  {/* 這裡的 cx, cy 全部改為 0，因為位置由上面的 translate 控制 */}
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={20}
+                    fill="transparent"
+                    style={{ cursor: currentTool === 'cursor' ? (isDragging ? 'grabbing' : 'grab') : 'inherit' }}
+                    onMouseDown={(e) => handlePointMouseDown(e, point)}
+                    onClick={(e) => {
+                      if (currentTool === 'cursor' && !draggingPointId) {
+                        e.stopPropagation();
+                        onPointClick(point.id, e.ctrlKey || e.metaKey);
+                      }
+                    }}
+                  />
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={isActive || isSelected ? 8 : 6}
+                    className={`marker-point ${isSelected ? 'selected' : ''}`}
+                    fill={isActive ? 'hsl(var(--accent))' : 'hsl(var(--marker-color))'}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                </g>
+              );
+            })}
           </svg>
         </div>
       )}
