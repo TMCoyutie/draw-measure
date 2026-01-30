@@ -69,102 +69,79 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     if (!imageSize || !containerRef.current) return;
     const svgElement = containerRef.current.querySelector('svg');
     if (!svgElement) return;
-  
+
+    // 1. 複製 SVG 節點
     const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-  
-    // 定義強制使用的顏色碼，避開 CSS 變數
-    const COLORS = {
-      primary: '#0ea5e9', // 亮藍色
-      accent: '#2dd4bf',  // 翡翠色
-      secondary: '#334155', // 深灰色
-      marker: '#00b4d8',   // 標記點原色
-      white: '#ffffff'
-    };
-  
-    // 1. 修復 Points (處理 translate)
+
+    // 獲取所有原始元素與複製元素的清單
+    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
+    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
+
+    // 2. 同步樣式：直接從畫面上抓取「目前的顏色」並寫入複製品中
+    clonedElements.forEach((el, index) => {
+      const originalEl = originalElements[index] as HTMLElement;
+      const clonedEl = el as HTMLElement;
+      if (!originalEl || !clonedEl) return;
+
+      const style = window.getComputedStyle(originalEl);
+
+      // 針對不同標籤類型同步顏色屬性
+      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
+        // 移除感應用的透明線
+        if (clonedEl.getAttribute('stroke') === 'transparent') {
+          clonedEl.remove();
+          return;
+        }
+        clonedEl.setAttribute('stroke', style.stroke);
+        clonedEl.style.stroke = style.stroke;
+        clonedEl.setAttribute('stroke-width', style.strokeWidth);
+      }
+
+      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
+        clonedEl.setAttribute('fill', style.fill);
+        clonedEl.style.fill = style.fill;
+        clonedEl.setAttribute('stroke', style.stroke); // 同步邊框
+      }
+
+      if (clonedEl.tagName === 'text') {
+        clonedEl.setAttribute('fill', style.fill);
+        clonedEl.style.fill = style.fill;
+        clonedEl.style.fontFamily = 'sans-serif'; // 確保字體一致
+        clonedEl.style.fontSize = style.fontSize;
+        clonedEl.style.fontWeight = style.fontWeight;
+      }
+    });
+
+    // 3. 修復 Points 的位移 (處理 translate)
     clonedSvg.querySelectorAll('g').forEach((g) => {
-      // 處理點的位移
-      const transform = g.getAttribute('style');
-      if (transform && transform.includes('translate')) {
-        // 提取 translate(x, y) 中的數值並轉為屬性，因為 Canvas 比較認屬性
-        const match = transform.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
+      const styleAttr = g.getAttribute('style');
+      if (styleAttr && styleAttr.includes('translate')) {
+        const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
         if (match) {
           g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
         }
       }
-  
-      // 修復點的顏色
-      const circle = g.querySelector('.marker-point');
-      if (circle) {
-        const isSelected = circle.classList.contains('selected');
-        circle.setAttribute('fill', isSelected ? COLORS.accent : COLORS.marker);
-        circle.setAttribute('style', 'display: block;'); // 確保顯示
-      }
     });
-  
-    // 2. 修復 Lines
-    clonedSvg.querySelectorAll('line').forEach((line) => {
-      if (line.getAttribute('stroke') === 'transparent') {
-        line.remove(); // 移除感應用的透明線，避免干擾
-        return;
-      }
-      const isSelected = line.classList.contains('stroke-primary');
-      line.setAttribute('stroke', isSelected ? COLORS.primary : COLORS.accent);
-      line.setAttribute('stroke-width', isSelected ? '3' : '2');
-      line.style.strokeDasharray = ''; // 移除虛線動畫
-    });
-  
-    // 3. 修復 Angles (圓弧與扇形)
-    clonedSvg.querySelectorAll('path').forEach((path) => {
-      if (path.getAttribute('stroke') === 'transparent') {
-        path.remove();
-        return;
-      }
-      
-      // 如果是扇形填充層
-      if (path.getAttribute('fill-opacity') === '0.3') {
-        path.setAttribute('fill', COLORS.accent);
-        path.style.fill = COLORS.accent;
-      } else {
-        // 如果是圓弧邊框
-        const isSelected = path.getAttribute('stroke')?.includes('var(--primary)');
-        path.setAttribute('stroke', isSelected ? COLORS.primary : COLORS.accent);
-        path.setAttribute('fill', 'none');
-      }
-    });
-  
-    // 4. 修復所有 Labels (Rect & Text)
-    clonedSvg.querySelectorAll('rect').forEach((rect) => {
-      const isPrimary = rect.classList.contains('fill-primary');
-      rect.setAttribute('fill', isPrimary ? COLORS.primary : COLORS.secondary);
-    });
-  
-    clonedSvg.querySelectorAll('text').forEach((text) => {
-      text.setAttribute('fill', COLORS.white);
-      text.style.fill = COLORS.white;
-      text.style.fontFamily = 'Arial, sans-serif';
-      text.style.fontSize = '12px';
-      text.style.fontWeight = 'bold';
-    });
-  
-    // 5. 轉為圖片
+
+    // 4. 轉為圖片邏輯 (保持不變)
     const svgData = new XMLSerializer().serializeToString(clonedSvg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-  
+
     canvas.width = imageSize.width;
     canvas.height = imageSize.height;
-  
+
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
-  
+
     img.onload = () => {
-      // 先畫底層圖片，再疊加 SVG
       const backgroundImg = new Image();
       backgroundImg.onload = () => {
-        ctx?.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-        ctx?.drawImage(img, 0, 0);
+        if (ctx) {
+          ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        }
         
         const link = document.createElement('a');
         link.download = `測量結果-${new Date().getTime()}.png`;
