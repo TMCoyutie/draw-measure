@@ -5,6 +5,7 @@ import { Toolbar } from '@/components/drawing/Toolbar';
 import { MeasurementTable } from '@/components/drawing/MeasurementTable';
 import { ImageUploader } from '@/components/drawing/ImageUploader';
 import { Ruler } from 'lucide-react';
+import { ArrowLeftRight, Ruler } from 'lucide-react';
 
 const Index = () => {
   // 1. 建立給 Canvas 使用的 Ref
@@ -77,32 +78,40 @@ const Index = () => {
   
     if (!lineA || !lineB) return null;
   
-    const lenA = calculateLineLength(lineA);
-    const lenB = calculateLineLength(lineB);
+    const lenA = calculateLineLength(lineA) || 0;
+    const lenB = calculateLineLength(lineB) || 0;
+
+    if (lenA === 0 || lenB === 0) return null;
   
     const first = isRatioSwapped ? lineB : lineA;
     const second = isRatioSwapped ? lineA : lineB;
     const valFirst = isRatioSwapped ? lenB : lenA;
     const valSecond = isRatioSwapped ? lenA : lenB;
+
+    const getLabelColor = (id: string) => {
+      return selectedArray.indexOf(id) === 0 ? '#7dd3fc' : '#0369a1';
+    };
   
     return (
-      <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-3 mb-4 animate-in fade-in slide-in-from-top-2">
+      <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-3 mb-4">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">比例分析</span>
           <button 
-            onClick={() => setIsRatioSwapped(!isRatioSwapped)}
+            onClick={(e) => {
+              e.preventDefault(); // 防止觸發其他行為
+              setIsRatioSwapped(!isRatioSwapped);
+            }}
             className="p-1 hover:bg-slate-800 rounded transition-colors"
-            title="切換分子分母"
           >
             <ArrowLeftRight size={14} className="text-blue-400" />
           </button>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-mono truncate max-w-[100px]" style={{ color: Array.from(selectedLineIds).indexOf(first.id) === 0 ? '#7dd3fc' : '#0369a1' }}>
+        <div className="flex items-baseline gap-2 overflow-hidden">
+          <span className="text-sm font-mono truncate" style={{ color: getLabelColor(first.id) }}>
             {first.label}
           </span>
           <span className="text-slate-500 text-xs">/</span>
-          <span className="text-sm font-mono truncate max-w-[100px]" style={{ color: Array.from(selectedLineIds).indexOf(second.id) === 0 ? '#7dd3fc' : '#0369a1' }}>
+          <span className="text-sm font-mono truncate" style={{ color: getLabelColor(second.id) }}>
             {second.label}
           </span>
           <span className="ml-auto text-lg font-bold text-white">
