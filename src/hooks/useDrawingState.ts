@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Point, Line, ToolType } from '@/types/drawing';
+import { Point, Line, Angle, ToolType } from '@/types/drawing';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -13,14 +13,27 @@ const getNextLabel = (existingLabels: string[]): string => {
   return `L${existingLabels.length + 1}`;
 };
 
+const getNextAngleLabel = (existingLabels: string[]): string => {
+  for (let i = 1; i <= 99; i++) {
+    const label = `θ${i}`;
+    if (!existingLabels.includes(label)) {
+      return label;
+    }
+  }
+  return `θ${existingLabels.length + 1}`;
+};
+
 export const useDrawingState = () => {
   const [points, setPoints] = useState<Point[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
+  const [angles, setAngles] = useState<Angle[]>([]);
   const [currentTool, setCurrentToolInternal] = useState<ToolType>('marker');
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
   const [selectedLineIds, setSelectedLineIds] = useState<Set<string>>(new Set());
+  const [selectedAngleIds, setSelectedAngleIds] = useState<Set<string>>(new Set());
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [angleFirstLineId, setAngleFirstLineId] = useState<string | null>(null);
 
   // Helper to find orphaned points (not connected to any line)
   const findOrphanedPointIds = useCallback((currentLines: Line[], currentPoints: Point[]): string[] => {
@@ -39,6 +52,7 @@ export const useDrawingState = () => {
     if (tool === 'cursor') {
       // Cancel active point when switching to cursor
       setActivePointId(null);
+      setAngleFirstLineId(null);
       // Clean up orphaned points
       setPoints(prevPoints => {
         setLines(prevLines => {
@@ -53,6 +67,11 @@ export const useDrawingState = () => {
         });
         return prevPoints;
       });
+    } else if (tool === 'marker') {
+      setAngleFirstLineId(null);
+    } else if (tool === 'angle') {
+      setActivePointId(null);
+      setAngleFirstLineId(null);
     }
     setCurrentToolInternal(tool);
   }, [findOrphanedPointIds]);
@@ -137,6 +156,13 @@ export const useDrawingState = () => {
         const orphanedIds = findOrphanedPoints(newLines, remainingPoints);
         return remainingPoints.filter(p => !orphanedIds.includes(p.id));
       });
+      // Clean up angles that reference deleted lines
+      const deletedLineIds = prev
+        .filter(line => line.startPointId === pointId || line.endPointId === pointId)
+        .map(l => l.id);
+      setAngles(prevAngles => 
+        prevAngles.filter(a => !deletedLineIds.includes(a.line1Id) && !deletedLineIds.includes(a.line2Id))
+      );
       return newLines;
     });
     
@@ -158,6 +184,10 @@ export const useDrawingState = () => {
         const orphanedIds = findOrphanedPoints(newLines, prevPoints);
         return prevPoints.filter(p => !orphanedIds.includes(p.id));
       });
+      // Clean up angles that reference this line
+      setAngles(prevAngles => 
+        prevAngles.filter(a => a.line1Id !== lineId && a.line2Id !== lineId)
+      );
       return newLines;
     });
     setSelectedLineIds(prev => {
@@ -167,14 +197,37 @@ export const useDrawingState = () => {
     });
   }, [findOrphanedPoints]);
 
+  const deleteAngle = useCallback((angleId: string) => {
+    setAngles(prev => prev.filter(a => a.id !== angleId));
+    setSelectedAngleIds(prev => {
+      const next = new Set(prev);
+      next.delete(angleId);
+      return next;
+    });
+  }, []);
+
   const deleteSelected = useCallback(() => {
-    // Delete selected lines first
+    // Delete selected angles first
+    setAngles(prev => prev.filter(a => !selectedAngleIds.has(a.id)));
+    
+    // Delete selected lines
     setLines(prev => {
       let newLines = prev.filter(l => !selectedLineIds.has(l.id));
       
       // Also delete lines connected to selected points
       newLines = newLines.filter(line => 
         !selectedPointIds.has(line.startPointId) && !selectedPointIds.has(line.endPointId)
+      );
+      
+      // Clean up angles that reference deleted lines
+      const deletedLineIds = new Set([
+        ...selectedLineIds,
+        ...prev.filter(line => 
+          selectedPointIds.has(line.startPointId) || selectedPointIds.has(line.endPointId)
+        ).map(l => l.id)
+      ]);
+      setAngles(prevAngles => 
+        prevAngles.filter(a => !deletedLineIds.has(a.line1Id) && !deletedLineIds.has(a.line2Id))
       );
       
       // Clean up orphaned points
@@ -195,14 +248,18 @@ export const useDrawingState = () => {
     // Clear selections
     setSelectedPointIds(new Set());
     setSelectedLineIds(new Set());
-  }, [selectedLineIds, selectedPointIds, activePointId, findOrphanedPoints]);
+    setSelectedAngleIds(new Set());
+  }, [selectedLineIds, selectedPointIds, selectedAngleIds, activePointId, findOrphanedPoints]);
 
   const clearAll = useCallback(() => {
     setPoints([]);
     setLines([]);
+    setAngles([]);
     setActivePointId(null);
+    setAngleFirstLineId(null);
     setSelectedPointIds(new Set());
     setSelectedLineIds(new Set());
+    setSelectedAngleIds(new Set());
   }, []);
 
   const selectPoint = useCallback((pointId: string | null, ctrlKey: boolean = false) => {
@@ -224,6 +281,7 @@ export const useDrawingState = () => {
     } else {
       setSelectedPointIds(new Set([pointId]));
       setSelectedLineIds(new Set());
+      setSelectedAngleIds(new Set());
     }
   }, []);
 
@@ -246,21 +304,51 @@ export const useDrawingState = () => {
     } else {
       setSelectedLineIds(new Set([lineId]));
       setSelectedPointIds(new Set());
+      setSelectedAngleIds(new Set());
+    }
+  }, []);
+
+  const selectAngle = useCallback((angleId: string | null, ctrlKey: boolean = false) => {
+    if (angleId === null) {
+      setSelectedAngleIds(new Set());
+      return;
+    }
+    
+    if (ctrlKey) {
+      setSelectedAngleIds(prev => {
+        const next = new Set(prev);
+        if (next.has(angleId)) {
+          next.delete(angleId);
+        } else {
+          next.add(angleId);
+        }
+        return next;
+      });
+    } else {
+      setSelectedAngleIds(new Set([angleId]));
+      setSelectedPointIds(new Set());
+      setSelectedLineIds(new Set());
     }
   }, []);
 
   const clearSelection = useCallback(() => {
     setSelectedPointIds(new Set());
     setSelectedLineIds(new Set());
+    setSelectedAngleIds(new Set());
   }, []);
 
   const cancelActivePoint = useCallback(() => {
     setActivePointId(null);
+    setAngleFirstLineId(null);
   }, []);
 
   const getPointById = useCallback((id: string): Point | undefined => {
     return points.find(p => p.id === id);
   }, [points]);
+
+  const getLineById = useCallback((id: string): Line | undefined => {
+    return lines.find(l => l.id === id);
+  }, [lines]);
 
   const calculateLineLength = useCallback((line: Line): number => {
     const startPoint = getPointById(line.startPointId);
@@ -275,30 +363,132 @@ export const useDrawingState = () => {
     ));
   }, []);
 
-  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0;
+  // Find common point between two lines
+  const findCommonPoint = useCallback((line1: Line, line2: Line): string | null => {
+    if (line1.startPointId === line2.startPointId || line1.startPointId === line2.endPointId) {
+      return line1.startPointId;
+    }
+    if (line1.endPointId === line2.startPointId || line1.endPointId === line2.endPointId) {
+      return line1.endPointId;
+    }
+    return null;
+  }, []);
+
+  // Calculate angle between two lines at their common vertex
+  const calculateAngleBetweenLines = useCallback((line1: Line, line2: Line, vertexPointId: string): number => {
+    const vertex = getPointById(vertexPointId);
+    if (!vertex) return 0;
+
+    // Get the other point of each line (not the vertex)
+    const p1Id = line1.startPointId === vertexPointId ? line1.endPointId : line1.startPointId;
+    const p2Id = line2.startPointId === vertexPointId ? line2.endPointId : line2.startPointId;
+    
+    const p1 = getPointById(p1Id);
+    const p2 = getPointById(p2Id);
+    
+    if (!p1 || !p2) return 0;
+
+    // Calculate vectors from vertex to each point
+    const v1 = { x: p1.x - vertex.x, y: p1.y - vertex.y };
+    const v2 = { x: p2.x - vertex.x, y: p2.y - vertex.y };
+
+    // Calculate angle using dot product
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+    
+    if (mag1 === 0 || mag2 === 0) return 0;
+    
+    const cosAngle = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
+    const angleRad = Math.acos(cosAngle);
+    return angleRad * (180 / Math.PI);
+  }, [getPointById]);
+
+  // Handle line click for angle tool
+  const handleAngleToolLineClick = useCallback((lineId: string) => {
+    if (angleFirstLineId === null) {
+      // First line selection
+      setAngleFirstLineId(lineId);
+    } else if (angleFirstLineId === lineId) {
+      // Clicked same line, cancel
+      setAngleFirstLineId(null);
+    } else {
+      // Second line selection - create angle
+      const line1 = getLineById(angleFirstLineId);
+      const line2 = getLineById(lineId);
+      
+      if (line1 && line2) {
+        const commonPointId = findCommonPoint(line1, line2);
+        
+        if (commonPointId) {
+          // Check if angle already exists
+          const angleExists = angles.some(a => 
+            (a.line1Id === angleFirstLineId && a.line2Id === lineId) ||
+            (a.line1Id === lineId && a.line2Id === angleFirstLineId)
+          );
+          
+          if (!angleExists) {
+            const degrees = calculateAngleBetweenLines(line1, line2, commonPointId);
+            const existingLabels = angles.map(a => a.label);
+            const newAngle: Angle = {
+              id: generateId(),
+              label: getNextAngleLabel(existingLabels),
+              line1Id: angleFirstLineId,
+              line2Id: lineId,
+              vertexPointId: commonPointId,
+              degrees,
+            };
+            setAngles(prev => [...prev, newAngle]);
+          }
+        }
+      }
+      setAngleFirstLineId(null);
+    }
+  }, [angleFirstLineId, getLineById, findCommonPoint, calculateAngleBetweenLines, angles]);
+
+  // Recalculate all angles when points change
+  const recalculateAngles = useCallback(() => {
+    setAngles(prev => prev.map(angle => {
+      const line1 = getLineById(angle.line1Id);
+      const line2 = getLineById(angle.line2Id);
+      if (!line1 || !line2) return angle;
+      const degrees = calculateAngleBetweenLines(line1, line2, angle.vertexPointId);
+      return { ...angle, degrees };
+    }));
+  }, [getLineById, calculateAngleBetweenLines]);
+
+  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0 || selectedAngleIds.size > 0;
 
   return {
     points,
     lines,
+    angles,
     currentTool,
     setCurrentTool,
     activePointId,
+    angleFirstLineId,
     selectedPointIds,
     selectedLineIds,
+    selectedAngleIds,
     mousePosition,
     setMousePosition,
     handleCanvasClick,
+    handleAngleToolLineClick,
     deletePoint,
     deleteLine,
+    deleteAngle,
     deleteSelected,
     clearAll,
     selectPoint,
     selectLine,
+    selectAngle,
     clearSelection,
     cancelActivePoint,
     getPointById,
+    getLineById,
     calculateLineLength,
     updatePointPosition,
+    recalculateAngles,
     hasSelection,
   };
 };
