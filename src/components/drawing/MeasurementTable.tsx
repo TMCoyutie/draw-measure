@@ -115,15 +115,19 @@ export const MeasurementTable = ({
                     key={angle.id}
                     onClick={(e) => onSelectAngle(angle.id, e.ctrlKey || e.metaKey)}
                     className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 mb-1 ${
-                      isSelected ? 'text-white shadow-md' : 'text-white'
+                      isSelected ? 'text-white shadow-lg' : 'text-slate-300 hover:bg-white/5'
                     }`}
                     style={{ 
                       // 角度目前預設使用 accent 翡翠綠
-                      backgroundColor: isSelected ? 'hsl(var(--accent))' : 'rgba(16, 185, 129, 0.8)',
+                      backgroundColor: isSelected ? 'hsl(var(--primary))' : 'transparent',
+                      border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.05)'
                     }}
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-black text-lg">{angle.label}</span>
+                      <span className="text-xs font-bold opacity-70 tracking-widest uppercase">
+                        角度
+                      </span>
                     </div>
                     <span className="text-sm font-mono font-bold">
                       {angle.degrees.toFixed(1)}°
