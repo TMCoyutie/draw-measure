@@ -82,6 +82,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     startX: number;
     startY: number;
   } | null>(null);
+  
+  // Circle move dragging state
+  const [isDraggingCircle, setIsDraggingCircle] = useState(false);
+  const [circleMoveStart, setCircleMoveStart] = useState<{
+    mouseX: number;
+    mouseY: number;
+    circleCenterX: number;
+    circleCenterY: number;
+  } | null>(null);
 
   // 匯出邏輯
   const handleExportImage = () => {
@@ -189,7 +198,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   }, [image]);
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (draggingPointId || draggingHandle) return; // Don't trigger click during drag
+    if (draggingPointId || draggingHandle || isDraggingCircle) return; // Don't trigger click during drag
     
     if (currentTool === 'marker') {
       const svg = e.currentTarget;
@@ -213,56 +222,79 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    // Handle circle bounding box dragging
+    // Handle circle move dragging
+    if (isDraggingCircle && circleMoveStart && circle) {
+      const deltaX = x - circleMoveStart.mouseX;
+      const deltaY = y - circleMoveStart.mouseY;
+      onCircleResize({
+        centerX: circleMoveStart.circleCenterX + deltaX,
+        centerY: circleMoveStart.circleCenterY + deltaY,
+      });
+      onMouseMove(x, y);
+      return;
+    }
+    
+    // Handle circle bounding box handle dragging (resize)
     if (draggingHandle && circleDragState && circle) {
-      const { anchorX, anchorY, startX, startY } = circleDragState;
+      const { anchorX, anchorY } = circleDragState;
       
-      // Calculate distance from anchor to current mouse position
+      // Calculate signed distance from anchor to current mouse position
       const dx = x - anchorX;
       const dy = y - anchorY;
       
-      // For corner handles, use the larger of dx or dy to maintain aspect ratio
       let newRadius: number;
-      if (draggingHandle.includes('-')) {
-        // Corner handle - use diagonal distance
-        newRadius = Math.max(10, Math.sqrt(dx * dx + dy * dy) / Math.sqrt(2));
-      } else {
-        // Edge handle - use perpendicular distance
-        if (draggingHandle === 'top' || draggingHandle === 'bottom') {
-          newRadius = Math.max(10, Math.abs(dy));
-        } else {
-          newRadius = Math.max(10, Math.abs(dx));
-        }
-      }
+      let newCenterX = circle.centerX;
+      let newCenterY = circle.centerY;
       
-      // Calculate new center based on anchor point and new radius
-      let newCenterX = anchorX;
-      let newCenterY = anchorY;
-      
+      // Corner handles
       if (draggingHandle === 'top-left') {
-        newCenterX = anchorX + newRadius;
-        newCenterY = anchorY + newRadius;
+        // Dragging top-left, anchor is bottom-right
+        // Only shrink, don't allow flipping past anchor
+        const effectiveDx = Math.min(dx, -10); // Must stay left of anchor
+        const effectiveDy = Math.min(dy, -10); // Must stay above anchor
+        newRadius = Math.max(10, Math.min(-effectiveDx, -effectiveDy) / Math.sqrt(2) * Math.sqrt(2) / 2);
+        newRadius = Math.max(10, (Math.abs(effectiveDx) + Math.abs(effectiveDy)) / 2 / Math.sqrt(2) * Math.sqrt(2));
+        newRadius = Math.max(10, Math.min(Math.abs(effectiveDx), Math.abs(effectiveDy)));
+        newCenterX = anchorX - newRadius;
+        newCenterY = anchorY - newRadius;
       } else if (draggingHandle === 'top-right') {
-        newCenterX = anchorX - newRadius;
-        newCenterY = anchorY + newRadius;
+        const effectiveDx = Math.max(dx, 10);
+        const effectiveDy = Math.min(dy, -10);
+        newRadius = Math.max(10, Math.min(effectiveDx, Math.abs(effectiveDy)));
+        newCenterX = anchorX + newRadius;
+        newCenterY = anchorY - newRadius;
       } else if (draggingHandle === 'bottom-left') {
-        newCenterX = anchorX + newRadius;
-        newCenterY = anchorY - newRadius;
-      } else if (draggingHandle === 'bottom-right') {
+        const effectiveDx = Math.min(dx, -10);
+        const effectiveDy = Math.max(dy, 10);
+        newRadius = Math.max(10, Math.min(Math.abs(effectiveDx), effectiveDy));
         newCenterX = anchorX - newRadius;
-        newCenterY = anchorY - newRadius;
-      } else if (draggingHandle === 'top') {
-        newCenterX = circle.centerX;
         newCenterY = anchorY + newRadius;
-      } else if (draggingHandle === 'bottom') {
-        newCenterX = circle.centerX;
-        newCenterY = anchorY - newRadius;
-      } else if (draggingHandle === 'left') {
+      } else if (draggingHandle === 'bottom-right') {
+        const effectiveDx = Math.max(dx, 10);
+        const effectiveDy = Math.max(dy, 10);
+        newRadius = Math.max(10, Math.min(effectiveDx, effectiveDy));
         newCenterX = anchorX + newRadius;
-        newCenterY = circle.centerY;
-      } else if (draggingHandle === 'right') {
+        newCenterY = anchorY + newRadius;
+      }
+      // Edge handles
+      else if (draggingHandle === 'top') {
+        const effectiveDy = Math.min(dy, -10);
+        newRadius = Math.abs(effectiveDy);
+        newCenterY = anchorY - newRadius;
+      } else if (draggingHandle === 'bottom') {
+        const effectiveDy = Math.max(dy, 10);
+        newRadius = effectiveDy;
+        newCenterY = anchorY + newRadius;
+      } else if (draggingHandle === 'left') {
+        const effectiveDx = Math.min(dx, -10);
+        newRadius = Math.abs(effectiveDx);
         newCenterX = anchorX - newRadius;
-        newCenterY = circle.centerY;
+      } else if (draggingHandle === 'right') {
+        const effectiveDx = Math.max(dx, 10);
+        newRadius = effectiveDx;
+        newCenterX = anchorX + newRadius;
+      } else {
+        newRadius = circle.radius;
       }
       
       onCircleResize({ centerX: newCenterX, centerY: newCenterY, radius: newRadius });
@@ -288,6 +320,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     setDraggingPointId(null);
     setDraggingHandle(null);
     setCircleDragState(null);
+    setIsDraggingCircle(false);
+    setCircleMoveStart(null);
   };
 
   // Circle bounding box handle mouse down
@@ -336,6 +370,34 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       setDraggingPointId(point.id);
       setDragPosition({ x: point.x, y: point.y });
     }
+  };
+
+  // Handle circle area click for selection
+  const handleCircleAreaClick = (e: React.MouseEvent) => {
+    if (currentTool !== 'circle') return;
+    e.stopPropagation();
+    onCircleClick();
+  };
+
+  // Handle circle area drag for moving
+  const handleCircleAreaMouseDown = (e: React.MouseEvent) => {
+    if (currentTool !== 'circle' || !circle) return;
+    e.stopPropagation();
+    
+    const svg = (e.target as Element).closest('svg');
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setIsDraggingCircle(true);
+    setCircleMoveStart({
+      mouseX: x,
+      mouseY: y,
+      circleCenterX: circle.centerX,
+      circleCenterY: circle.centerY,
+    });
+    onCircleClick(); // Select on drag start
   };
 
   // Get bounding box handles for circle
@@ -499,6 +561,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               setDragPosition(null);
               setDraggingHandle(null);
               setCircleDragState(null);
+              setIsDraggingCircle(false);
+              setCircleMoveStart(null);
               onMouseLeave();
             }}
           >
@@ -680,6 +744,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
             {/* Circle with bounding box */}
             {circle && currentTool === 'circle' && (
               <g>
+                {/* Invisible bounding box fill for click/drag detection */}
+                {(() => {
+                  const bbox = getCircleBoundingBox();
+                  if (!bbox) return null;
+                  return (
+                    <rect
+                      x={bbox.left}
+                      y={bbox.top}
+                      width={bbox.right - bbox.left}
+                      height={bbox.bottom - bbox.top}
+                      fill="transparent"
+                      style={{ cursor: isDraggingCircle ? 'grabbing' : 'move' }}
+                      onClick={handleCircleAreaClick}
+                      onMouseDown={handleCircleAreaMouseDown}
+                    />
+                  );
+                })()}
+                
                 {/* Circle outline */}
                 <circle
                   cx={circle.centerX}
@@ -688,11 +770,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                   fill="none"
                   stroke="#ef4444"
                   strokeWidth={2}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCircleClick();
-                  }}
-                  style={{ cursor: 'pointer' }}
+                  style={{ pointerEvents: 'none' }}
                 />
                 {/* Center point */}
                 <circle
@@ -709,7 +787,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                   if (!bbox) return null;
                   return (
                     <>
-                      {/* Bounding box rectangle */}
+                      {/* Bounding box rectangle (visual only) */}
                       <rect
                         x={bbox.left}
                         y={bbox.top}
@@ -732,7 +810,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                           fill={isCircleSelected ? '#3b82f6' : '#64748b'}
                           stroke="white"
                           strokeWidth={1}
-                          style={{ cursor: draggingHandle === handle.id ? 'grabbing' : 'grab' }}
+                          style={{ cursor: draggingHandle === handle.id ? 'grabbing' : 'nwse-resize' }}
                           onMouseDown={(e) => handleBoundingBoxHandleMouseDown(e, handle.id)}
                           onClick={(e) => {
                             e.stopPropagation();
