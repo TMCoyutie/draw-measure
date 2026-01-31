@@ -4,7 +4,6 @@ import { DrawingCanvas, DrawingCanvasRef } from '@/components/drawing/DrawingCan
 import { Toolbar } from '@/components/drawing/Toolbar';
 import { MeasurementTable } from '@/components/drawing/MeasurementTable';
 import { ImageUploader } from '@/components/drawing/ImageUploader';
-import { Ruler } from 'lucide-react';
 import { ArrowLeftRight, Ruler } from 'lucide-react';
 
 const Index = () => {
@@ -20,6 +19,8 @@ const Index = () => {
     points,
     lines,
     angles,
+    circle,
+    isCircleSelected,
     currentTool,
     setCurrentTool,
     activePointId,
@@ -30,12 +31,15 @@ const Index = () => {
     mousePosition,
     setMousePosition,
     handleCanvasClick,
+    handleCircleToolClick,
     handleAngleToolLineClick,
     deleteSelected,
     clearAll,
     selectPoint,
     selectLine,
     selectAngle,
+    selectCircle,
+    updateCircle,
     clearSelection,
     cancelActivePoint,
     getPointById,
@@ -66,7 +70,7 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cancelActivePoint, clearSelection, deleteSelected, hasSelection]);
 
-  const hasData = points.length > 0 || lines.length > 0 || angles.length > 0;
+  const hasData = points.length > 0 || lines.length > 0 || angles.length > 0 || circle !== null;
 
   // 計算比例的資料
   const renderRatioSection = () => {
@@ -154,11 +158,13 @@ const Index = () => {
 
         {/* Canvas */}
         <DrawingCanvas
-          ref={canvasRef} // 這裡務必綁定 Ref
+          ref={canvasRef}
           image={image}
           points={points}
           lines={lines}
           angles={angles}
+          circle={circle}
+          isCircleSelected={isCircleSelected}
           activePointId={activePointId}
           angleFirstLineId={angleFirstLineId}
           selectedPointIds={selectedPointIds}
@@ -168,11 +174,14 @@ const Index = () => {
           mousePosition={mousePosition}
           showLengthLabels={showLengthLabels}
           onCanvasClick={handleCanvasClick}
+          onCircleToolClick={handleCircleToolClick}
           onMouseMove={(x, y) => setMousePosition({ x, y })}
           onMouseLeave={() => setMousePosition(null)}
           onPointClick={selectPoint}
           onLineClick={selectLine}
           onAngleClick={selectAngle}
+          onCircleClick={selectCircle}
+          onCircleResize={updateCircle}
           onAngleToolLineClick={handleAngleToolLineClick}
           onClearSelection={clearSelection}
           onPointDrag={(pointId, x, y) => {
@@ -211,6 +220,7 @@ const Index = () => {
           onClearAll={clearAll}
           hasData={hasData}
           angleFirstLineId={angleFirstLineId}
+          hasCircle={circle !== null}
         />
 
         {/* 插入比例面板 */}

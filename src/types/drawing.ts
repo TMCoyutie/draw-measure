@@ -20,4 +20,11 @@ export interface Angle {
   degrees: number;
 }
 
-export type ToolType = 'cursor' | 'marker' | 'angle';
+export interface Circle {
+  id: string;
+  centerX: number;
+  centerY: number;
+  radius: number;
+}
+
+export type ToolType = 'cursor' | 'marker' | 'angle' | 'circle';

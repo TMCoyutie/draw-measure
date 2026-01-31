@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
-import { Point, Line, Angle, ToolType } from '@/types/drawing';
+import { Point, Line, Angle, Circle, ToolType } from '@/types/drawing';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+const DEFAULT_CIRCLE_RADIUS = 50;
 
 const getNextLabel = (existingLabels: string[]): string => {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -27,6 +28,8 @@ export const useDrawingState = () => {
   const [points, setPoints] = useState<Point[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [angles, setAngles] = useState<Angle[]>([]);
+  const [circle, setCircle] = useState<Circle | null>(null);
+  const [isCircleSelected, setIsCircleSelected] = useState(false);
   const [currentTool, setCurrentToolInternal] = useState<ToolType>('marker');
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
@@ -49,6 +52,11 @@ export const useDrawingState = () => {
 
   // Custom setCurrentTool that handles cleanup when switching tools
   const setCurrentTool = useCallback((tool: ToolType) => {
+    // Deselect circle when switching away from circle tool
+    if (tool !== 'circle') {
+      setIsCircleSelected(false);
+    }
+    
     if (tool === 'cursor') {
       // Cancel active point when switching to cursor
       setActivePointId(null);
@@ -72,9 +80,43 @@ export const useDrawingState = () => {
     } else if (tool === 'angle') {
       setActivePointId(null);
       setAngleFirstLineId(null);
+    } else if (tool === 'circle') {
+      setActivePointId(null);
+      setAngleFirstLineId(null);
     }
     setCurrentToolInternal(tool);
   }, [findOrphanedPointIds]);
+
+  // Circle tool handlers
+  const handleCircleToolClick = useCallback((x: number, y: number) => {
+    if (circle) return; // Only allow one circle
+    const newCircle: Circle = {
+      id: generateId(),
+      centerX: x,
+      centerY: y,
+      radius: DEFAULT_CIRCLE_RADIUS,
+    };
+    setCircle(newCircle);
+  }, [circle]);
+
+  const selectCircle = useCallback(() => {
+    if (currentTool === 'circle') {
+      setIsCircleSelected(true);
+      // Clear other selections
+      setSelectedPointIds(new Set());
+      setSelectedLineIds(new Set());
+      setSelectedAngleIds(new Set());
+    }
+  }, [currentTool]);
+
+  const updateCircle = useCallback((updates: Partial<Circle>) => {
+    setCircle(prev => prev ? { ...prev, ...updates } : null);
+  }, []);
+
+  const deleteCircle = useCallback(() => {
+    setCircle(null);
+    setIsCircleSelected(false);
+  }, []);
 
   const addPoint = useCallback((x: number, y: number): string => {
     const newPoint: Point = { id: generateId(), x, y };
@@ -207,7 +249,13 @@ export const useDrawingState = () => {
   }, []);
 
   const deleteSelected = useCallback(() => {
-    // Delete selected angles first
+    // Delete selected circle first
+    if (isCircleSelected) {
+      setCircle(null);
+      setIsCircleSelected(false);
+    }
+    
+    // Delete selected angles
     setAngles(prev => prev.filter(a => !selectedAngleIds.has(a.id)));
     
     // Delete selected lines
@@ -249,12 +297,14 @@ export const useDrawingState = () => {
     setSelectedPointIds(new Set());
     setSelectedLineIds(new Set());
     setSelectedAngleIds(new Set());
-  }, [selectedLineIds, selectedPointIds, selectedAngleIds, activePointId, findOrphanedPoints]);
+  }, [selectedLineIds, selectedPointIds, selectedAngleIds, activePointId, findOrphanedPoints, isCircleSelected]);
 
   const clearAll = useCallback(() => {
     setPoints([]);
     setLines([]);
     setAngles([]);
+    setCircle(null);
+    setIsCircleSelected(false);
     setActivePointId(null);
     setAngleFirstLineId(null);
     setSelectedPointIds(new Set());
@@ -457,12 +507,14 @@ export const useDrawingState = () => {
     }));
   }, [getLineById, calculateAngleBetweenLines]);
 
-  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0 || selectedAngleIds.size > 0;
+  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0 || selectedAngleIds.size > 0 || isCircleSelected;
 
   return {
     points,
     lines,
     angles,
+    circle,
+    isCircleSelected,
     currentTool,
     setCurrentTool,
     activePointId,
@@ -473,15 +525,19 @@ export const useDrawingState = () => {
     mousePosition,
     setMousePosition,
     handleCanvasClick,
+    handleCircleToolClick,
     handleAngleToolLineClick,
     deletePoint,
     deleteLine,
     deleteAngle,
+    deleteCircle,
     deleteSelected,
     clearAll,
     selectPoint,
     selectLine,
     selectAngle,
+    selectCircle,
+    updateCircle,
     clearSelection,
     cancelActivePoint,
     getPointById,
