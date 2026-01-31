@@ -12,6 +12,7 @@ interface MeasurementTableProps {
   onSelectAngle: (angleId: string, ctrlKey: boolean) => void;
   showLengthLabels: boolean;
   onToggleLengthLabels: () => void;
+  getLineColor: (lineId: string) => string;
 }
 
 export const MeasurementTable = ({ 
@@ -24,6 +25,7 @@ export const MeasurementTable = ({
   onSelectAngle,
   showLengthLabels,
   onToggleLengthLabels,
+  getLineColor,
 }: MeasurementTableProps) => {
   return (
     <div className="space-y-2">
