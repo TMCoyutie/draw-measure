@@ -75,26 +75,24 @@ export const MeasurementTable = ({
                   <div
                     key={line.id}
                     onClick={(e) => onSelectLine(line.id, e.ctrlKey || e.metaKey)}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
-                      isSelected 
-                        ? 'bg-white/10 ring-1 ring-white/20' 
-                        : 'hover:bg-white/5'
+                    // 關鍵：將動態顏色直接套用在 background 上
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 mb-1 ${
+                      isSelected ? 'text-white shadow-md' : 'hover:bg-white/5 text-slate-300'
                     }`}
+                    style={{ 
+                      backgroundColor: isSelected ? rowColor : 'transparent',
+                      // 如果沒選中，我們給它一個淡淡的邊框或維持原樣
+                      border: isSelected ? 'none' : '1px solid rgba(255,255,255,0.05)'
+                    }}
                   >
-                    <div 
-                      className="w-7 h-7 rounded-md flex items-center justify-center text-sm font-black text-white shadow-sm transition-colors"
-                      style={{ backgroundColor: labelBgColor }}
-                    >
-                      {line.label}
+                    <div className="flex items-center gap-3">
+                      {/* 左側代號加粗，增加辨識度 */}
+                      <span className="font-mono font-black text-lg">{line.label}</span>
+                      <span className="text-sm font-medium opacity-80">線段</span>
                     </div>
-          
-                    {/* 線段代碼（選填，若想保留原本的大字可以加在這裡） */}
-                    <span className="flex-1 font-mono text-sm font-medium text-slate-300">
-                      線段 {line.label}
-                    </span>
-          
-                    {/* 長度數值 */}
-                    <span className="text-sm font-mono font-medium text-slate-400">
+              
+                    {/* 右側長度數值 */}
+                    <span className="text-sm font-mono font-bold">
                       {length.toFixed(1)} px
                     </span>
                   </div>
@@ -116,14 +114,18 @@ export const MeasurementTable = ({
                   <div
                     key={angle.id}
                     onClick={(e) => onSelectAngle(angle.id, e.ctrlKey || e.metaKey)}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 ${
-                      isSelected 
-                        ? 'bg-accent text-accent-foreground' 
-                        : 'hover:bg-white/10'
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all duration-150 mb-1 ${
+                      isSelected ? 'text-white shadow-md' : 'text-white'
                     }`}
+                    style={{ 
+                      // 角度目前預設使用 accent 翡翠綠
+                      backgroundColor: isSelected ? 'hsl(var(--accent))' : 'rgba(16, 185, 129, 0.8)',
+                    }}
                   >
-                    <span className="font-mono font-bold text-lg">{angle.label}</span>
-                    <span className="text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-lg">{angle.label}</span>
+                    </div>
+                    <span className="text-sm font-mono font-bold">
                       {angle.degrees.toFixed(1)}°
                     </span>
                   </div>
