@@ -69,7 +69,7 @@ export const MeasurementTable = ({
               {lines.map(line => {
                 const length = calculateLength(line);
                 const isSelected = selectedLineIds.has(line.id);
-                const labelBgColor = getLineColor(line.id);
+                const rowColor = getLineColor(line.id);
                 
                 return (
                   <div
