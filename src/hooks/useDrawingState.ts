@@ -303,8 +303,8 @@ export const useDrawingState = () => {
     setPoints([]);
     setLines([]);
     setAngles([]);
-    setCircle(null);
-    setIsCircleSelected(false);
+    // setCircle(null);
+    // setIsCircleSelected(false);
     setActivePointId(null);
     setAngleFirstLineId(null);
     setSelectedPointIds(new Set());
