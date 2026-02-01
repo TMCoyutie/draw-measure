@@ -234,67 +234,44 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       return;
     }
     
-    // Handle circle bounding box handle dragging (resize)
+    // 在 handleMouseMove 內部
     if (draggingHandle && circleDragState && circle) {
       const { anchorX, anchorY } = circleDragState;
       
-      // Calculate signed distance from anchor to current mouse position
+      // 計算目前滑鼠相對於錨點（對角點）的位移
       const dx = x - anchorX;
       const dy = y - anchorY;
       
       let newRadius: number;
-      let newCenterX = circle.centerX;
-      let newCenterY = circle.centerY;
-      
-      // Corner handles
-      if (draggingHandle === 'top-left') {
-        // Dragging top-left, anchor is bottom-right
-        // Only shrink, don't allow flipping past anchor
-        const effectiveDx = Math.min(dx, -10); // Must stay left of anchor
-        const effectiveDy = Math.min(dy, -10); // Must stay above anchor
-        newRadius = Math.max(10, Math.min(-effectiveDx, -effectiveDy) / Math.sqrt(2) * Math.sqrt(2) / 2);
-        newRadius = Math.max(10, (Math.abs(effectiveDx) + Math.abs(effectiveDy)) / 2 / Math.sqrt(2) * Math.sqrt(2));
-        newRadius = Math.max(10, Math.min(Math.abs(effectiveDx), Math.abs(effectiveDy)));
-        newCenterX = anchorX - newRadius;
-        newCenterY = anchorY - newRadius;
-      } else if (draggingHandle === 'top-right') {
-        const effectiveDx = Math.max(dx, 10);
-        const effectiveDy = Math.min(dy, -10);
-        newRadius = Math.max(10, Math.min(effectiveDx, Math.abs(effectiveDy)));
-        newCenterX = anchorX + newRadius;
-        newCenterY = anchorY - newRadius;
-      } else if (draggingHandle === 'bottom-left') {
-        const effectiveDx = Math.min(dx, -10);
-        const effectiveDy = Math.max(dy, 10);
-        newRadius = Math.max(10, Math.min(Math.abs(effectiveDx), effectiveDy));
-        newCenterX = anchorX - newRadius;
-        newCenterY = anchorY + newRadius;
-      } else if (draggingHandle === 'bottom-right') {
-        const effectiveDx = Math.max(dx, 10);
-        const effectiveDy = Math.max(dy, 10);
-        newRadius = Math.max(10, Math.min(effectiveDx, effectiveDy));
-        newCenterX = anchorX + newRadius;
-        newCenterY = anchorY + newRadius;
-      }
-      // Edge handles
-      else if (draggingHandle === 'top') {
-        const effectiveDy = Math.min(dy, -10);
-        newRadius = Math.abs(effectiveDy);
-        newCenterY = anchorY - newRadius;
-      } else if (draggingHandle === 'bottom') {
-        const effectiveDy = Math.max(dy, 10);
-        newRadius = effectiveDy;
-        newCenterY = anchorY + newRadius;
-      } else if (draggingHandle === 'left') {
-        const effectiveDx = Math.min(dx, -10);
-        newRadius = Math.abs(effectiveDx);
-        newCenterX = anchorX - newRadius;
-      } else if (draggingHandle === 'right') {
-        const effectiveDx = Math.max(dx, 10);
-        newRadius = effectiveDx;
-        newCenterX = anchorX + newRadius;
+      let newCenterX: number;
+      let newCenterY: number;
+    
+      // --- 修正後的邏輯：以錨點為固定基準 ---
+    
+      // 1. 角落控制點 (Corners)
+      if (['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(draggingHandle)) {
+        // 為了維持正圓形且不位移過度，取寬高位移的平均值作為「直徑」
+        // 使用 Math.abs 確保半徑為正值，並限制最小尺寸為 5px
+        const size = Math.max(10, Math.min(Math.abs(dx), Math.abs(dy)));
+        newRadius = size / 2;
+        
+        // 圓心位置 = 錨點位置 + (方向係數 * 半徑)
+        // 方向係數取決於滑鼠是在錨點的哪一側
+        newCenterX = anchorX + (dx > 0 ? newRadius : -newRadius);
+        newCenterY = anchorY + (dy > 0 ? newRadius : -newRadius);
+      } 
+      // 2. 邊緣控制點 (Edges)
+      else if (['top', 'bottom'].includes(draggingHandle)) {
+        newRadius = Math.max(5, Math.abs(dy) / 2);
+        newCenterX = circle.centerX; // 垂直縮放時，水平中心不變
+        newCenterY = anchorY + (dy > 0 ? newRadius : -newRadius);
+      } 
+      else if (['left', 'right'].includes(draggingHandle)) {
+        newRadius = Math.max(5, Math.abs(dx) / 2);
+        newCenterX = anchorX + (dx > 0 ? newRadius : -newRadius);
+        newCenterY = circle.centerY; // 水平縮放時，垂直中心不變
       } else {
-        newRadius = circle.radius;
+        return;
       }
       
       onCircleResize({ centerX: newCenterX, centerY: newCenterY, radius: newRadius });
