@@ -635,22 +635,35 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
             {/* Circle (display only when not in circle tool) */}
             {circle && currentTool !== 'circle' && (
-              <g>
-                <circle
-                  cx={circle.centerX}
-                  cy={circle.centerY}
-                  r={circle.radius}
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  style={{ pointerEvents: 'none' }}
+              <circle
+                cx={circle.centerX}
+                cy={circle.centerY}
+                r={circle.radius}
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth={2}
+                strokeDasharray="4,2" // 設為虛線更像參考線
+                style={{ pointerEvents: 'none', opacity: 0.8 }}
+              />
+          
+              {/* 十字準星圓心 */}
+              <g style={{ pointerEvents: 'none' }}>
+                {/* 水平線 */}
+                <line 
+                  x1={circle.centerX - 10} y1={circle.centerY} 
+                  x2={circle.centerX + 10} y2={circle.centerY} 
+                  stroke="#ef4444" strokeWidth={1.5} 
                 />
-                <circle
-                  cx={circle.centerX}
-                  cy={circle.centerY}
-                  r={4}
-                  fill="#ef4444"
-                  style={{ pointerEvents: 'none' }}
+                {/* 垂直線 */}
+                <line 
+                  x1={circle.centerX} y1={circle.centerY - 10} 
+                  x2={circle.centerX} y2={circle.centerY + 10} 
+                  stroke="#ef4444" strokeWidth={1.5} 
+                />
+                {/* 中心避讓小圓（可選，增加質感） */}
+                <circle 
+                  cx={circle.centerX} cy={circle.centerY} r={2} 
+                  fill="white" stroke="#ef4444" strokeWidth={1} 
                 />
               </g>
             )}
