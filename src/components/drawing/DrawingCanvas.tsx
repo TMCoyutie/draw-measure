@@ -549,6 +549,111 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               width={imageSize?.width || 800}
               height={imageSize?.height || 600}
             />
+
+            {/* Circle with bounding box */}
+            {circle && currentTool === 'circle' && (
+              <g>
+                {/* Invisible bounding box fill for click/drag detection */}
+                {(() => {
+                  const bbox = getCircleBoundingBox();
+                  if (!bbox) return null;
+                  return (
+                    <rect
+                      x={bbox.left}
+                      y={bbox.top}
+                      width={bbox.right - bbox.left}
+                      height={bbox.bottom - bbox.top}
+                      fill="transparent"
+                      style={{ cursor: isDraggingCircle ? 'grabbing' : 'move' }}
+                      onClick={handleCircleAreaClick}
+                      onMouseDown={handleCircleAreaMouseDown}
+                    />
+                  );
+                })()}
+                
+                {/* Circle outline */}
+                <circle
+                  cx={circle.centerX}
+                  cy={circle.centerY}
+                  r={circle.radius}
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  style={{ pointerEvents: 'none' }}
+                />
+                {/* Center point */}
+                <circle
+                  cx={circle.centerX}
+                  cy={circle.centerY}
+                  r={4}
+                  fill="#ef4444"
+                  style={{ pointerEvents: 'none' }}
+                />
+                
+                {/* Bounding box - only show when circle tool is active */}
+                {(() => {
+                  const bbox = getCircleBoundingBox();
+                  if (!bbox) return null;
+                  return (
+                    <>
+                      {/* Bounding box rectangle (visual only) */}
+                      <rect
+                        x={bbox.left}
+                        y={bbox.top}
+                        width={bbox.right - bbox.left}
+                        height={bbox.bottom - bbox.top}
+                        fill="none"
+                        stroke={isCircleSelected ? '#3b82f6' : '#94a3b8'}
+                        strokeWidth={1}
+                        strokeDasharray="4,4"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                      {/* Bounding box handles */}
+                      {bbox.handles.map((handle) => (
+                        <rect
+                          key={handle.id}
+                          x={handle.x - 5}
+                          y={handle.y - 5}
+                          width={10}
+                          height={10}
+                          fill={isCircleSelected ? '#3b82f6' : '#64748b'}
+                          stroke="white"
+                          strokeWidth={1}
+                          style={{ cursor: draggingHandle === handle.id ? 'grabbing' : 'nwse-resize' }}
+                          onMouseDown={(e) => handleBoundingBoxHandleMouseDown(e, handle.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCircleClick();
+                          }}
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
+              </g>
+            )}
+
+            {/* Circle (display only when not in circle tool) */}
+            {circle && currentTool !== 'circle' && (
+              <g>
+                <circle
+                  cx={circle.centerX}
+                  cy={circle.centerY}
+                  r={circle.radius}
+                  fill="none"
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  style={{ pointerEvents: 'none' }}
+                />
+                <circle
+                  cx={circle.centerX}
+                  cy={circle.centerY}
+                  r={4}
+                  fill="#ef4444"
+                  style={{ pointerEvents: 'none' }}
+                />
+              </g>
+            )}
             
             {/* Completed lines */}
             {lines.map(line => {
@@ -717,111 +822,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                 </g>
               );
             })}
-
-            {/* Circle with bounding box */}
-            {circle && currentTool === 'circle' && (
-              <g>
-                {/* Invisible bounding box fill for click/drag detection */}
-                {(() => {
-                  const bbox = getCircleBoundingBox();
-                  if (!bbox) return null;
-                  return (
-                    <rect
-                      x={bbox.left}
-                      y={bbox.top}
-                      width={bbox.right - bbox.left}
-                      height={bbox.bottom - bbox.top}
-                      fill="transparent"
-                      style={{ cursor: isDraggingCircle ? 'grabbing' : 'move' }}
-                      onClick={handleCircleAreaClick}
-                      onMouseDown={handleCircleAreaMouseDown}
-                    />
-                  );
-                })()}
-                
-                {/* Circle outline */}
-                <circle
-                  cx={circle.centerX}
-                  cy={circle.centerY}
-                  r={circle.radius}
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  style={{ pointerEvents: 'none' }}
-                />
-                {/* Center point */}
-                <circle
-                  cx={circle.centerX}
-                  cy={circle.centerY}
-                  r={4}
-                  fill="#ef4444"
-                  style={{ pointerEvents: 'none' }}
-                />
-                
-                {/* Bounding box - only show when circle tool is active */}
-                {(() => {
-                  const bbox = getCircleBoundingBox();
-                  if (!bbox) return null;
-                  return (
-                    <>
-                      {/* Bounding box rectangle (visual only) */}
-                      <rect
-                        x={bbox.left}
-                        y={bbox.top}
-                        width={bbox.right - bbox.left}
-                        height={bbox.bottom - bbox.top}
-                        fill="none"
-                        stroke={isCircleSelected ? '#3b82f6' : '#94a3b8'}
-                        strokeWidth={1}
-                        strokeDasharray="4,4"
-                        style={{ pointerEvents: 'none' }}
-                      />
-                      {/* Bounding box handles */}
-                      {bbox.handles.map((handle) => (
-                        <rect
-                          key={handle.id}
-                          x={handle.x - 5}
-                          y={handle.y - 5}
-                          width={10}
-                          height={10}
-                          fill={isCircleSelected ? '#3b82f6' : '#64748b'}
-                          stroke="white"
-                          strokeWidth={1}
-                          style={{ cursor: draggingHandle === handle.id ? 'grabbing' : 'nwse-resize' }}
-                          onMouseDown={(e) => handleBoundingBoxHandleMouseDown(e, handle.id)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onCircleClick();
-                          }}
-                        />
-                      ))}
-                    </>
-                  );
-                })()}
-              </g>
-            )}
-
-            {/* Circle (display only when not in circle tool) */}
-            {circle && currentTool !== 'circle' && (
-              <g>
-                <circle
-                  cx={circle.centerX}
-                  cy={circle.centerY}
-                  r={circle.radius}
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  style={{ pointerEvents: 'none' }}
-                />
-                <circle
-                  cx={circle.centerX}
-                  cy={circle.centerY}
-                  r={4}
-                  fill="#ef4444"
-                  style={{ pointerEvents: 'none' }}
-                />
-              </g>
-            )}
 
             {/* Active line (being drawn) */}
             {activePoint && mousePosition && (
