@@ -234,14 +234,23 @@ const Index = () => {
             hasImage={image !== null} 
           />
           
-          {/* 2. 新增的匯出按鈕：緊貼在 Uploader 下方 */}
-          <button 
-            onClick={() => canvasRef.current?.exportImage()}
-            disabled={!image}
-            className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:bg-slate-800 disabled:cursor-not-allowed transition-all rounded-md text-sm font-bold text-white shadow-sm mt-1"
-          >
-            <span>💾 匯出測量圖片</span>
-          </button>
+          {/* 匯出與複製按鈕並排 */}
+          <div className="flex gap-2 mt-1">
+            <button 
+              onClick={() => canvasRef.current?.exportImage()}
+              disabled={!image}
+              className="flex-1 flex items-center justify-center gap-1.5 p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:bg-slate-800 disabled:cursor-not-allowed transition-all rounded-md text-sm font-bold text-white shadow-sm"
+            >
+              <span>💾 匯出圖片</span>
+            </button>
+            <button 
+              onClick={() => canvasRef.current?.copyImage()}
+              disabled={!image}
+              className="flex-1 flex items-center justify-center gap-1.5 p-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:bg-slate-800 disabled:cursor-not-allowed transition-all rounded-md text-sm font-bold text-white shadow-sm"
+            >
+              <span>📋 複製圖片</span>
+            </button>
+          </div>
         </div>
         
         <Toolbar

@@ -35,6 +35,7 @@ interface DrawingCanvasProps {
 // 定義暴露給父組件的方法介面
 export interface DrawingCanvasRef {
   exportImage: () => void;
+  copyImage: () => Promise<void>;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((props, ref) => {
@@ -182,9 +183,104 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     img.src = url;
   };
   
+  // 複製圖片到剪貼簿邏輯
+  const handleCopyImage = async () => {
+    if (!imageSize || !containerRef.current) return;
+    const svgElement = containerRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    // 複製 SVG 節點（與匯出邏輯相同）
+    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
+    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
+    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
+
+    clonedElements.forEach((el, index) => {
+      const originalEl = originalElements[index] as HTMLElement;
+      const clonedEl = el as HTMLElement;
+      if (!originalEl || !clonedEl) return;
+
+      const style = window.getComputedStyle(originalEl);
+
+      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
+        if (clonedEl.getAttribute('stroke') === 'transparent') {
+          clonedEl.remove();
+          return;
+        }
+        clonedEl.setAttribute('stroke', style.stroke);
+        clonedEl.style.stroke = style.stroke;
+        clonedEl.setAttribute('stroke-width', style.strokeWidth);
+      }
+
+      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
+        clonedEl.setAttribute('fill', style.fill);
+        clonedEl.style.fill = style.fill;
+        clonedEl.setAttribute('stroke', style.stroke);
+      }
+
+      if (clonedEl.tagName === 'text') {
+        clonedEl.setAttribute('fill', style.fill);
+        clonedEl.style.fill = style.fill;
+        clonedEl.style.fontFamily = 'sans-serif';
+        clonedEl.style.fontSize = style.fontSize;
+        clonedEl.style.fontWeight = style.fontWeight;
+      }
+    });
+
+    clonedSvg.querySelectorAll('g').forEach((g) => {
+      const styleAttr = g.getAttribute('style');
+      if (styleAttr && styleAttr.includes('translate')) {
+        const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
+        if (match) {
+          g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
+        }
+      }
+    });
+
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    canvas.width = imageSize.width;
+    canvas.height = imageSize.height;
+
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    return new Promise<void>((resolve) => {
+      img.onload = () => {
+        const backgroundImg = new Image();
+        backgroundImg.onload = async () => {
+          if (ctx) {
+            ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+          }
+          
+          // 將 canvas 轉為 Blob 並複製到剪貼簿
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              try {
+                await navigator.clipboard.write([
+                  new ClipboardItem({ 'image/png': blob })
+                ]);
+              } catch (err) {
+                console.error('Failed to copy image:', err);
+              }
+            }
+            URL.revokeObjectURL(url);
+            resolve();
+          }, 'image/png');
+        };
+        backgroundImg.src = image || '';
+      };
+      img.src = url;
+    });
+  };
+  
   // 暴露方法
   useImperativeHandle(ref, () => ({
-    exportImage: handleExportImage
+    exportImage: handleExportImage,
+    copyImage: handleCopyImage
   }));
   
   useEffect(() => {
