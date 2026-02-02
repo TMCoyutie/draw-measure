@@ -19,8 +19,8 @@ const Index = () => {
     points,
     lines,
     angles,
-    circle,
-    isCircleSelected,
+    circles,
+    selectedCircleIds,
     currentTool,
     setCurrentTool,
     activePointId,
@@ -47,8 +47,8 @@ const Index = () => {
     updatePointPosition,
     recalculateAngles,
     hasSelection,
-    setCircle, 
-    setIsCircleSelected,
+    setCircles,
+    setSelectedCircleIds,
   } = useDrawingState();
   
   useEffect(() => {
@@ -106,12 +106,12 @@ const Index = () => {
 
   const handleResetAll = () => {
     clearAll();      // 清掉所有繪圖資料
-    setCircle(null);
-    setIsCircleSelected(false);
+    setCircles([]);
+    setSelectedCircleIds(new Set());
     setImage(null);  // 清掉圖片資料
   };
   
-  const hasData = points.length > 0 || lines.length > 0 || angles.length > 0 || circle !== null;
+  const hasData = points.length > 0 || lines.length > 0 || angles.length > 0 || circles.length > 0;
 
   // 計算比例的資料
   const renderRatioSection = () => {
@@ -204,8 +204,8 @@ const Index = () => {
           points={points}
           lines={lines}
           angles={angles}
-          circle={circle}
-          isCircleSelected={isCircleSelected}
+          circles={circles}
+          selectedCircleIds={selectedCircleIds}
           activePointId={activePointId}
           angleFirstLineId={angleFirstLineId}
           selectedPointIds={selectedPointIds}
@@ -271,7 +271,7 @@ const Index = () => {
           onClearAll={clearAll}
           hasData={hasData}
           angleFirstLineId={angleFirstLineId}
-          hasCircle={circle !== null}
+          hasCircles={circles.length > 0}
         />
 
         {/* 插入比例面板 */}
