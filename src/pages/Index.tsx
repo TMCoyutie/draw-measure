@@ -106,7 +106,7 @@ const Index = () => {
 
   const handleResetAll = () => {
     clearAll();      // 清掉所有繪圖資料
-    setCircle(null);
+    setCircles([]);
     setIsCircleSelected(false);
     setImage(null);  // 清掉圖片資料
   };
