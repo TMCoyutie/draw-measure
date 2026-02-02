@@ -323,74 +323,65 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    // Handle circle move dragging
-    if (isDraggingCircle && circleMoveStart && circle) {
-      const deltaX = x - circleMoveStart.mouseX;
-      const deltaY = y - circleMoveStart.mouseY;
-      onCircleResize({
-        centerX: circleMoveStart.circleCenterX + deltaX,
-        centerY: circleMoveStart.circleCenterY + deltaY,
+    // --- 修正 1：處理多圓平移拖拽 ---
+    if (isDraggingCircle && circleMoveStart && activeCircleId) {
+      onCircleResize(activeCircleId, {
+        centerX: circleMoveStart.circleCenterX + (x - circleMoveStart.mouseX),
+        centerY: circleMoveStart.circleCenterY + (y - circleMoveStart.mouseY),
       });
       onMouseMove(x, y);
       return;
     }
     
-    // 在 handleMouseMove 內部
-    if (draggingHandle && circleDragState && circle) {
+    // --- 修正 2：處理多圓縮放拖拽 ---
+    if (draggingHandle && circleDragState && activeCircleId) {
+      // 必須先從陣列中找到當前正在操作的那個圓，才能獲取它目前的 centerX/Y
+      const activeCircle = circles.find(c => c.id === activeCircleId);
+      if (!activeCircle) return;
+  
       const { anchorX, anchorY } = circleDragState;
-      
-      // 計算目前滑鼠相對於錨點（對角點）的位移
       const dx = x - anchorX;
       const dy = y - anchorY;
       
       let newRadius: number;
       let newCenterX: number;
       let newCenterY: number;
-    
-      // --- 修正後的邏輯：以錨點為固定基準 ---
-    
+  
       // 1. 角落控制點 (Corners)
       if (['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(draggingHandle)) {
-        // 為了維持正圓形且不位移過度，取寬高位移的平均值作為「直徑」
-        // 使用 Math.abs 確保半徑為正值，並限制最小尺寸為 5px
         const size = Math.max(10, Math.min(Math.abs(dx), Math.abs(dy)));
         newRadius = size / 2;
-        
-        // 圓心位置 = 錨點位置 + (方向係數 * 半徑)
-        // 方向係數取決於滑鼠是在錨點的哪一側
         newCenterX = anchorX + (dx > 0 ? newRadius : -newRadius);
         newCenterY = anchorY + (dy > 0 ? newRadius : -newRadius);
       } 
       // 2. 邊緣控制點 (Edges)
       else if (['top', 'bottom'].includes(draggingHandle)) {
         newRadius = Math.max(5, Math.abs(dy) / 2);
-        newCenterX = circle.centerX; // 垂直縮放時，水平中心不變
+        newCenterX = activeCircle.centerX; // 使用 activeCircle 而非舊的 circle
         newCenterY = anchorY + (dy > 0 ? newRadius : -newRadius);
       } 
       else if (['left', 'right'].includes(draggingHandle)) {
         newRadius = Math.max(5, Math.abs(dx) / 2);
         newCenterX = anchorX + (dx > 0 ? newRadius : -newRadius);
-        newCenterY = circle.centerY; // 水平縮放時，垂直中心不變
+        newCenterY = activeCircle.centerY; // 使用 activeCircle 而非舊的 circle
       } else {
         return;
       }
       
-      onCircleResize({ centerX: newCenterX, centerY: newCenterY, radius: newRadius });
+      // 呼叫時帶入 ID
+      onCircleResize(activeCircleId, { centerX: newCenterX, centerY: newCenterY, radius: newRadius });
       onMouseMove(x, y);
       return;
     }
     
+    // 原有的點位拖拽邏輯保持不變
     if (!draggingPointId || currentTool !== 'cursor') {
       onMouseMove(x, y);
       return;
     }
   
-    // 1. 優先更新本地位置 (視覺最快)
     setDragPosition({ x, y });
-    
-    // 2. 同步通知父組件 (讓線段跟上)
     onPointDrag(draggingPointId, x, y);
-    
     onMouseMove(x, y);
   };
 
@@ -458,24 +449,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   };
 
   // Handle circle area drag for moving
-  const handleCircleAreaMouseDown = (e: React.MouseEvent) => {
-    if (currentTool !== 'circle' || !circle) return;
+  const handleCircleAreaMouseDown = (e: React.MouseEvent, circleId: string) => {
+    if (currentTool !== 'circle') return;
     e.stopPropagation();
     
+    const targetCircle = circles.find(c => c.id === circleId);
+    if (!targetCircle) return;
+  
     const svg = (e.target as Element).closest('svg');
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+  
     setIsDraggingCircle(true);
+    setActiveCircleId(circleId); // 記錄目前操作的 ID
     setCircleMoveStart({
-      mouseX: x,
-      mouseY: y,
-      circleCenterX: circle.centerX,
-      circleCenterY: circle.centerY,
+      mouseX,
+      mouseY,
+      circleCenterX: targetCircle.centerX,
+      circleCenterY: targetCircle.centerY,
     });
-    onCircleClick(); // Select on drag start
+    onCircleClick(circleId); 
   };
 
   // Get bounding box handles for circle
@@ -729,7 +724,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                             onMouseDown={(e) => {
                               e.stopPropagation();
                               setActiveCircleId(circleItem.id); // 記住抓的是誰
-                              handleCircleAreaMouseDown(e, circleItem); // 傳入目前的圓
+                              handleCircleAreaMouseDown(e, circleItem.id); // 傳入目前的圓
                             }}
                           />
                           
