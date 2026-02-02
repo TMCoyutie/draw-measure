@@ -519,7 +519,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     >
       {!image ? (
         <div className="text-center text-muted-foreground">
-          <p className="text-lg">請上傳圖片開始繪圖</p>
+          <p className="text-lg">點擊右側按鈕或直接 <kbd className="px-2 py-1 bg-slate-100 rounded border shadow-sm text-sm">Ctrl + V</kbd> 貼上圖片開始繪圖</p>
         </div>
       ) : (
         <div className="relative inline-block shadow-2xl rounded-lg overflow-hidden">
