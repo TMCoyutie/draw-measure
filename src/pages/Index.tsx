@@ -47,6 +47,8 @@ const Index = () => {
     updatePointPosition,
     recalculateAngles,
     hasSelection,
+    setCircle, 
+    setIsCircleSelected,
   } = useDrawingState();
   
   useEffect(() => {
