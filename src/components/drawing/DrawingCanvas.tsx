@@ -725,7 +725,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                         fill="transparent"
                         style={{ cursor: isDraggingCircle && draggingCircleId === circle.id ? 'grabbing' : 'move' }}
                         onClick={(e) => handleCircleAreaClick(e, circle.id)}
-                        onMouseDown={(e) => handleCircleAreaMouseDown(e, circle)}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleCircleAreaMouseDown(e, circle);
+                        }}
                       />
                       
                       {/* 藍色尺寸控制框 (Visual Box) */}
@@ -753,7 +756,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                           stroke="white"
                           strokeWidth={1}
                           style={{ cursor: 'pointer' }}
-                          onMouseDown={(e) => handleBoundingBoxHandleMouseDown(e, circle, handle.id)}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            handleBoundingBoxHandleMouseDown(e, circle, handle.id);
+                          }}
                         />
                       ))}
                     </g>
