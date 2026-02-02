@@ -24,7 +24,7 @@ interface DrawingCanvasProps {
   onPointClick: (pointId: string, ctrlKey: boolean) => void;
   onLineClick: (lineId: string, ctrlKey: boolean) => void;
   onAngleClick: (angleId: string, ctrlKey: boolean) => void;
-  onCircleClick: () => void;
+  onCircleClick: (id: string) => void;
   onCircleResize: (id: string, updates: Partial<Circle>) => void;
   onAngleToolLineClick: (lineId: string) => void;
   onClearSelection: () => void;
@@ -46,7 +46,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     points,
     lines,
     angles,
-    circle,
+    circles,
     isCircleSelected,
     activePointId,
     angleFirstLineId,
@@ -96,6 +96,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     circleCenterY: number;
   } | null>(null);
 
+  const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
+  
   // 匯出邏輯
   const handleExportImage = () => {
     if (!imageSize || !containerRef.current) return;
@@ -712,7 +714,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                       if (!bbox) return null;
                       
                       // 判斷此圓是否為目前被選中的（用於變色）
-                      const isSelected = isCircleSelected && selectedCircleId === circleItem.id;
+                      const isSelected = isCircleSelected && activeCircleId === circleItem.id;
             
                       return (
                         <>
@@ -723,12 +725,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                             width={bbox.right - bbox.left}
                             height={bbox.bottom - bbox.top}
                             fill="transparent"
-                            style={{ cursor: isDraggingCircle ? 'grabbing' : 'move' }}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onCircleClick(circleItem.id); // 告知父層選中了哪個圓
+                            style={{ cursor: 'move' }}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              setActiveCircleId(circleItem.id); // 記住抓的是誰
+                              handleCircleAreaMouseDown(e, circleItem); // 傳入目前的圓
                             }}
-                            onMouseDown={(e) => handleCircleAreaMouseDown(e, circleItem.id)}
                           />
                           
                           {/* 藍色尺寸控制框 (Visual Box) */}
