@@ -43,6 +43,13 @@ export const ImageUploader = ({ onImageUpload, hasImage }: ImageUploaderProps) =
         <Upload size={16} className="mr-2" />
         {hasImage ? '更換圖片' : '上傳圖片'}
       </Button>
+
+      {/* 新增的提示文字 */}
+      {!hasImage && (
+        <p className="text-[11px] text-slate-500 text-center mt-2 italic font-medium">
+          或直接按下 <kbd className="px-1 py-0.5 bg-slate-800 rounded border border-slate-700 text-slate-300 font-sans not-italic">Ctrl + V</kbd> 貼上圖片
+        </p>
+      )}
     </div>
   );
 };
