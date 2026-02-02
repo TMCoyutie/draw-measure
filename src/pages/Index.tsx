@@ -73,27 +73,26 @@ const Index = () => {
   // 處理 Ctrl+V 圖片貼上功能
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      // 取得剪貼簿資料項
+      // --- 關鍵修正：如果已經有圖片了，直接跳出不執行 ---
+      if (image) return; 
+      // -------------------------------------------
+  
       const items = e.clipboardData?.items;
       if (!items) return;
   
       for (let i = 0; i < items.length; i++) {
-        // 如果該項目的 MIME 類型是圖片
         if (items[i].type.indexOf('image') !== -1) {
           const blob = items[i].getAsFile();
           if (!blob) continue;
   
-          // 使用 FileReader 將 Blob 轉為 DataURL (Base64)
           const reader = new FileReader();
           reader.onload = (event) => {
             const result = event.target?.result;
             if (typeof result === 'string') {
-              setImage(result); // 更新圖片狀態，讓畫布顯示圖片
+              setImage(result);
             }
           };
           reader.readAsDataURL(blob);
-          
-          // 找到第一張圖片後就停止處理
           break;
         }
       }
@@ -101,7 +100,7 @@ const Index = () => {
   
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [setImage]);
+  }, [image, setImage]); // 記得把 image 加入相依陣列中
 
   const hasData = points.length > 0 || lines.length > 0 || angles.length > 0 || circle !== null;
 
