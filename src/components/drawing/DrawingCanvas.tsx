@@ -70,6 +70,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     onPointDrag,
     getPointById,
     calculateLineLength,
+    onResetAll,
   } = props;
   
   const containerRef = useRef<HTMLDivElement>(null);
