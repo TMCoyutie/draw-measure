@@ -28,7 +28,7 @@ export const useDrawingState = () => {
   const [points, setPoints] = useState<Point[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [angles, setAngles] = useState<Angle[]>([]);
-  const [circles, setCircles] = useState<Circle[]>([]);
+  const [circle, setCircle] = useState<Circle | null>(null);
   const [isCircleSelected, setIsCircleSelected] = useState(false);
   const [currentTool, setCurrentToolInternal] = useState<ToolType>('marker');
   const [activePointId, setActivePointId] = useState<string | null>(null);
@@ -89,15 +89,15 @@ export const useDrawingState = () => {
 
   // Circle tool handlers
   const handleCircleToolClick = useCallback((x: number, y: number) => {
+    if (circle) return; // Only allow one circle
     const newCircle: Circle = {
-      id: generateId(), // 確保每個圓有獨立 ID
+      id: generateId(),
       centerX: x,
       centerY: y,
       radius: DEFAULT_CIRCLE_RADIUS,
     };
-    setCircles(prev => [...prev, newCircle]); // 加入陣列而非覆蓋
-    setIsCircleSelected(true);
-  }, []);
+    setCircle(newCircle);
+  }, [circle]);
 
   const selectCircle = useCallback(() => {
     if (currentTool === 'circle') {
@@ -109,8 +109,8 @@ export const useDrawingState = () => {
     }
   }, [currentTool]);
 
-  const updateCircle = useCallback((id: string, updates: Partial<Circle>) => {
-    setCircles(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  const updateCircle = useCallback((updates: Partial<Circle>) => {
+    setCircle(prev => prev ? { ...prev, ...updates } : null);
   }, []);
 
   const deleteCircle = useCallback(() => {
