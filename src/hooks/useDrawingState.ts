@@ -533,6 +533,8 @@ export const useDrawingState = () => {
     deleteCircle,
     deleteSelected,
     clearAll,
+    setCircle,
+    setIsCircleSelected,
     selectPoint,
     selectLine,
     selectAngle,
