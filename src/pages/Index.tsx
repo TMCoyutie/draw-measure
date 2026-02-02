@@ -102,6 +102,13 @@ const Index = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [image, setImage]); // 記得把 image 加入相依陣列中
 
+  const handleResetAll = () => {
+    clearAll();      // 清掉所有繪圖資料
+    setCircle(null);
+    setIsCircleSelected(false);
+    setImage(null);  // 清掉圖片資料
+  };
+  
   const hasData = points.length > 0 || lines.length > 0 || angles.length > 0 || circle !== null;
 
   // 計算比例的資料
@@ -222,6 +229,7 @@ const Index = () => {
           }}
           getPointById={getPointById}
           calculateLineLength={calculateLineLength}
+          onResetAll={handleResetAll}
         />
       </div>
 
