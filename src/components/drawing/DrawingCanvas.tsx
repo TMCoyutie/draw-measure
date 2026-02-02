@@ -7,7 +7,7 @@ interface DrawingCanvasProps {
   points: Point[];
   lines: Line[];
   angles: Angle[];
-  circles: Circle[];
+  circle: Circle | null;
   isCircleSelected: boolean;
   activePointId: string | null;
   angleFirstLineId: string | null;
@@ -24,8 +24,8 @@ interface DrawingCanvasProps {
   onPointClick: (pointId: string, ctrlKey: boolean) => void;
   onLineClick: (lineId: string, ctrlKey: boolean) => void;
   onAngleClick: (angleId: string, ctrlKey: boolean) => void;
-  onCircleClick: (id: string) => void;
-  onCircleResize: (id: string, updates: Partial<Circle>) => void;
+  onCircleClick: () => void;
+  onCircleResize: (updates: Partial<Circle>) => void;
   onAngleToolLineClick: (lineId: string) => void;
   onClearSelection: () => void;
   onPointDrag: (pointId: string, x: number, y: number) => void;
@@ -46,7 +46,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     points,
     lines,
     angles,
-    circles,
+    circle,
     isCircleSelected,
     activePointId,
     angleFirstLineId,
@@ -96,8 +96,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     circleCenterY: number;
   } | null>(null);
 
-  const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
-  
   // 匯出邏輯
   const handleExportImage = () => {
     if (!imageSize || !containerRef.current) return;
@@ -323,65 +321,74 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    // --- 修正 1：處理多圓平移拖拽 ---
-    if (isDraggingCircle && circleMoveStart && activeCircleId) {
-      onCircleResize(activeCircleId, {
-        centerX: circleMoveStart.circleCenterX + (x - circleMoveStart.mouseX),
-        centerY: circleMoveStart.circleCenterY + (y - circleMoveStart.mouseY),
+    // Handle circle move dragging
+    if (isDraggingCircle && circleMoveStart && circle) {
+      const deltaX = x - circleMoveStart.mouseX;
+      const deltaY = y - circleMoveStart.mouseY;
+      onCircleResize({
+        centerX: circleMoveStart.circleCenterX + deltaX,
+        centerY: circleMoveStart.circleCenterY + deltaY,
       });
       onMouseMove(x, y);
       return;
     }
     
-    // --- 修正 2：處理多圓縮放拖拽 ---
-    if (draggingHandle && circleDragState && activeCircleId) {
-      // 必須先從陣列中找到當前正在操作的那個圓，才能獲取它目前的 centerX/Y
-      const activeCircle = circles.find(c => c.id === activeCircleId);
-      if (!activeCircle) return;
-  
+    // 在 handleMouseMove 內部
+    if (draggingHandle && circleDragState && circle) {
       const { anchorX, anchorY } = circleDragState;
+      
+      // 計算目前滑鼠相對於錨點（對角點）的位移
       const dx = x - anchorX;
       const dy = y - anchorY;
       
       let newRadius: number;
       let newCenterX: number;
       let newCenterY: number;
-  
+    
+      // --- 修正後的邏輯：以錨點為固定基準 ---
+    
       // 1. 角落控制點 (Corners)
       if (['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(draggingHandle)) {
+        // 為了維持正圓形且不位移過度，取寬高位移的平均值作為「直徑」
+        // 使用 Math.abs 確保半徑為正值，並限制最小尺寸為 5px
         const size = Math.max(10, Math.min(Math.abs(dx), Math.abs(dy)));
         newRadius = size / 2;
+        
+        // 圓心位置 = 錨點位置 + (方向係數 * 半徑)
+        // 方向係數取決於滑鼠是在錨點的哪一側
         newCenterX = anchorX + (dx > 0 ? newRadius : -newRadius);
         newCenterY = anchorY + (dy > 0 ? newRadius : -newRadius);
       } 
       // 2. 邊緣控制點 (Edges)
       else if (['top', 'bottom'].includes(draggingHandle)) {
         newRadius = Math.max(5, Math.abs(dy) / 2);
-        newCenterX = activeCircle.centerX; // 使用 activeCircle 而非舊的 circle
+        newCenterX = circle.centerX; // 垂直縮放時，水平中心不變
         newCenterY = anchorY + (dy > 0 ? newRadius : -newRadius);
       } 
       else if (['left', 'right'].includes(draggingHandle)) {
         newRadius = Math.max(5, Math.abs(dx) / 2);
         newCenterX = anchorX + (dx > 0 ? newRadius : -newRadius);
-        newCenterY = activeCircle.centerY; // 使用 activeCircle 而非舊的 circle
+        newCenterY = circle.centerY; // 水平縮放時，垂直中心不變
       } else {
         return;
       }
       
-      // 呼叫時帶入 ID
-      onCircleResize(activeCircleId, { centerX: newCenterX, centerY: newCenterY, radius: newRadius });
+      onCircleResize({ centerX: newCenterX, centerY: newCenterY, radius: newRadius });
       onMouseMove(x, y);
       return;
     }
     
-    // 原有的點位拖拽邏輯保持不變
     if (!draggingPointId || currentTool !== 'cursor') {
       onMouseMove(x, y);
       return;
     }
   
+    // 1. 優先更新本地位置 (視覺最快)
     setDragPosition({ x, y });
+    
+    // 2. 同步通知父組件 (讓線段跟上)
     onPointDrag(draggingPointId, x, y);
+    
     onMouseMove(x, y);
   };
 
@@ -449,34 +456,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   };
 
   // Handle circle area drag for moving
-  const handleCircleAreaMouseDown = (e: React.MouseEvent, circleId: string) => {
-    if (currentTool !== 'circle') return;
+  const handleCircleAreaMouseDown = (e: React.MouseEvent) => {
+    if (currentTool !== 'circle' || !circle) return;
     e.stopPropagation();
     
-    const targetCircle = circles.find(c => c.id === circleId);
-    if (!targetCircle) return;
-  
     const svg = (e.target as Element).closest('svg');
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-  
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
     setIsDraggingCircle(true);
-    setActiveCircleId(circleId); // 記錄目前操作的 ID
     setCircleMoveStart({
-      mouseX,
-      mouseY,
-      circleCenterX: targetCircle.centerX,
-      circleCenterY: targetCircle.centerY,
+      mouseX: x,
+      mouseY: y,
+      circleCenterX: circle.centerX,
+      circleCenterY: circle.centerY,
     });
-    onCircleClick(circleId); 
+    onCircleClick(); // Select on drag start
   };
 
   // Get bounding box handles for circle
-  const getCircleBoundingBox = (circleData: Circle | null) => {
-    if (!circleData) return null;
-    const { centerX, centerY, radius } = circleData;
+  const getCircleBoundingBox = () => {
+    if (!circle) return null;
+    const { centerX, centerY, radius } = circle;
     return {
       left: centerX - radius,
       top: centerY - radius,
@@ -664,16 +667,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               height={imageSize?.height || 600}
             />
 
-            {/* --- 圓心參考線與十字準星 (支援多圓渲染) --- */}
-            {circles.map((circleItem) => (
-              <g key={circleItem.id}>
+            {/* --- 圓心參考線與十字準星 (最底層渲染) --- */}
+            {circle && (
+              <g>
                 {/* 1. 外觀層：虛線圓圈與十字準星 (不論什麼工具模式都顯示，但不可點擊) */}
                 <g style={{ pointerEvents: 'none' }}>
                   {/* 參考圓圈本體 */}
                   <circle
-                    cx={circleItem.centerX}
-                    cy={circleItem.centerY}
-                    r={circleItem.radius}
+                    cx={circle.centerX}
+                    cy={circle.centerY}
+                    r={circle.radius}
                     fill="none"
                     stroke="#ef4444"
                     strokeWidth={2}
@@ -683,19 +686,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                   
                   {/* 十字準星 - 水平線 */}
                   <line 
-                    x1={circleItem.centerX - 12} y1={circleItem.centerY} 
-                    x2={circleItem.centerX + 12} y2={circleItem.centerY} 
+                    x1={circle.centerX - 12} y1={circle.centerY} 
+                    x2={circle.centerX + 12} y2={circle.centerY} 
                     stroke="#ef4444" strokeWidth={1.5} 
                   />
                   {/* 十字準星 - 垂直線 */}
                   <line 
-                    x1={circleItem.centerX} y1={circleItem.centerY - 12} 
-                    x2={circleItem.centerX} y2={circleItem.centerY + 12} 
+                    x1={circle.centerX} y1={circle.centerY - 12} 
+                    x2={circle.centerX} y2={circle.centerY + 12} 
                     stroke="#ef4444" strokeWidth={1.5} 
                   />
-                  {/* 中心避讓白點 */}
+                  {/* 中心避讓白點：讓十字中心在雜亂背景中依然清晰 */}
                   <circle 
-                    cx={circleItem.centerX} cy={circleItem.centerY} r={2} 
+                    cx={circle.centerX} cy={circle.centerY} r={2} 
                     fill="white" stroke="#ef4444" strokeWidth={1} 
                   />
                 </g>
@@ -703,14 +706,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                 {/* 2. 控制層：僅在「圓心工具」模式下顯示控制框與感應區 */}
                 {currentTool === 'circle' && (
                   <g>
+                    {/* 透明感應層 (用於點擊與拖動圓形) */}
                     {(() => {
-                      // 修改處：傳入當前的 circleItem 來計算該圓的控制框
-                      const bbox = getCircleBoundingBox(circleItem); 
+                      const bbox = getCircleBoundingBox();
                       if (!bbox) return null;
-                      
-                      // 判斷此圓是否為目前被選中的（用於變色）
-                      const isSelected = isCircleSelected && activeCircleId === circleItem.id;
-            
                       return (
                         <>
                           {/* 整體抓取區域 */}
@@ -720,12 +719,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                             width={bbox.right - bbox.left}
                             height={bbox.bottom - bbox.top}
                             fill="transparent"
-                            style={{ cursor: 'move' }}
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              setActiveCircleId(circleItem.id); // 記住抓的是誰
-                              handleCircleAreaMouseDown(e, circleItem.id); // 傳入目前的圓
-                            }}
+                            style={{ cursor: isDraggingCircle ? 'grabbing' : 'move' }}
+                            onClick={handleCircleAreaClick}
+                            onMouseDown={handleCircleAreaMouseDown}
                           />
                           
                           {/* 藍色尺寸控制框 (Visual Box) */}
@@ -735,7 +731,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                             width={bbox.right - bbox.left}
                             height={bbox.bottom - bbox.top}
                             fill="none"
-                            stroke={isSelected ? '#3b82f6' : '#94a3b8'}
+                            stroke={isCircleSelected ? '#3b82f6' : '#94a3b8'}
                             strokeWidth={1}
                             strokeDasharray="4,4"
                             style={{ pointerEvents: 'none' }}
@@ -749,11 +745,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                               y={handle.y - 5}
                               width={10}
                               height={10}
-                              fill={isSelected ? '#3b82f6' : '#64748b'}
+                              fill={isCircleSelected ? '#3b82f6' : '#64748b'}
                               stroke="white"
                               strokeWidth={1}
                               style={{ cursor: 'pointer' }}
-                              onMouseDown={(e) => handleBoundingBoxHandleMouseDown(e, handle.id, circleItem.id)}
+                              onMouseDown={(e) => handleBoundingBoxHandleMouseDown(e, handle.id)}
                             />
                           ))}
                         </>
@@ -762,7 +758,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                   </g>
                 )}
               </g>
-            ))}
+            )}
             
             {/* Completed lines */}
             {lines.map(line => {
