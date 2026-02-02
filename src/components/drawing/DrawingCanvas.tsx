@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { Point, Line, Angle, Circle, ToolType } from '@/types/drawing';
+import { X } from 'lucide-react';
 
 interface DrawingCanvasProps {
   image: string | null;
@@ -30,6 +31,7 @@ interface DrawingCanvasProps {
   onPointDrag: (pointId: string, x: number, y: number) => void;
   getPointById: (id: string) => Point | undefined;
   calculateLineLength: (line: Line) => number;
+  onResetAll: () => void;
 }
 
 // 定義暴露給父組件的方法介面
@@ -618,7 +620,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
           <p className="text-lg">點擊右側按鈕或直接 <kbd className="px-2 py-1 bg-slate-100 rounded border shadow-sm text-sm">Ctrl + V</kbd> 貼上圖片開始繪圖</p>
         </div>
       ) : (
-        <div className="relative inline-block shadow-2xl rounded-lg overflow-hidden">
+        /* 1. 確保這個 div 有 'group' 類名，這樣才能控制內部的按鈕顯示 */
+        <div className="relative inline-block shadow-2xl rounded-lg overflow-hidden group">
+    
+          {/* 2. 在這裡插入重置按鈕 (位於 svg 之前) */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // 防止點擊按鈕時觸發畫布的 onClick
+              if (window.confirm("確定要清空所有標記並移除圖片嗎？")) {
+                onResetAll();
+              }
+            }}
+            /* 關鍵樣式：opacity-0 group-hover:opacity-100 實現平時隱藏、移入顯示 */
+            className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-md shadow-lg"
+            title="重置畫布"
+          >
+            {/* 這裡使用 lucide-react 的 X 圖標，若沒 import 記得補上 */}
+            <X size={20} /> 
+          </button>
+          
           <svg
             width={imageSize?.width || 800}
             height={imageSize?.height || 600}
