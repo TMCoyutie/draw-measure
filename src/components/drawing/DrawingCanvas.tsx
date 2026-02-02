@@ -97,6 +97,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     circleCenterY: number;
   } | null>(null);
 
+  const lastDragEndTimeRef = useRef<number>(0);
+
   // 匯出邏輯
   const handleExportImage = () => {
     if (!imageSize || !containerRef.current) return;
@@ -299,6 +301,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (draggingPointId || draggingHandle || isDraggingCircle) return; // Don't trigger click during drag
+    const now = Date.now();
+    if (now - lastDragEndTimeRef.current < 200) {
+      return;
+    }
     
     if (currentTool === 'marker') {
       const svg = e.currentTarget;
@@ -397,6 +403,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   };
 
   const handleMouseUp = () => {
+    if (isDraggingCircle || draggingHandle || draggingPointId) {
+      // 記錄拖曳結束的瞬間
+      lastDragEndTimeRef.current = Date.now();
+    }
     setDraggingPointId(null);
     setDraggingHandle(null);
     setDraggingCircleId(null);
