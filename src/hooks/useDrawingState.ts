@@ -312,6 +312,14 @@ export const useDrawingState = () => {
     setSelectedAngleIds(new Set());
   }, []);
 
+  // useDrawingState.ts
+  const resetAll = useCallback((setImage: (url: string | null) => void) => {
+    clearAll();        // 先清空所有點、線、角、圓
+    setCircle(null);
+    setIsCircleSelected(false);
+    setImage(null);    // 再清空圖片
+  }, [clearAll]);
+
   const selectPoint = useCallback((pointId: string | null, ctrlKey: boolean = false) => {
     if (pointId === null) {
       setSelectedPointIds(new Set());
