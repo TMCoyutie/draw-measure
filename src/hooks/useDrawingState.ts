@@ -28,8 +28,8 @@ export const useDrawingState = () => {
   const [points, setPoints] = useState<Point[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [angles, setAngles] = useState<Angle[]>([]);
-  const [circle, setCircle] = useState<Circle | null>(null);
-  const [isCircleSelected, setIsCircleSelected] = useState(false);
+  const [circles, setCircles] = useState<Circle[]>([]);
+  const [selectedCircleIds, setSelectedCircleIds] = useState<Set<string>>(new Set());
   const [currentTool, setCurrentToolInternal] = useState<ToolType>('marker');
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
@@ -52,9 +52,9 @@ export const useDrawingState = () => {
 
   // Custom setCurrentTool that handles cleanup when switching tools
   const setCurrentTool = useCallback((tool: ToolType) => {
-    // Deselect circle when switching away from circle tool
+    // Deselect circles when switching away from circle tool
     if (tool !== 'circle') {
-      setIsCircleSelected(false);
+      setSelectedCircleIds(new Set());
     }
     
     if (tool === 'cursor') {
@@ -89,19 +89,30 @@ export const useDrawingState = () => {
 
   // Circle tool handlers
   const handleCircleToolClick = useCallback((x: number, y: number) => {
-    if (circle) return; // Only allow one circle
     const newCircle: Circle = {
       id: generateId(),
       centerX: x,
       centerY: y,
       radius: DEFAULT_CIRCLE_RADIUS,
     };
-    setCircle(newCircle);
-  }, [circle]);
+    setCircles(prev => [...prev, newCircle]);
+  }, []);
 
-  const selectCircle = useCallback(() => {
-    if (currentTool === 'circle') {
-      setIsCircleSelected(true);
+  const selectCircle = useCallback((circleId: string, ctrlKey: boolean = false) => {
+    if (currentTool !== 'circle') return;
+    
+    if (ctrlKey) {
+      setSelectedCircleIds(prev => {
+        const next = new Set(prev);
+        if (next.has(circleId)) {
+          next.delete(circleId);
+        } else {
+          next.add(circleId);
+        }
+        return next;
+      });
+    } else {
+      setSelectedCircleIds(new Set([circleId]));
       // Clear other selections
       setSelectedPointIds(new Set());
       setSelectedLineIds(new Set());
@@ -109,13 +120,17 @@ export const useDrawingState = () => {
     }
   }, [currentTool]);
 
-  const updateCircle = useCallback((updates: Partial<Circle>) => {
-    setCircle(prev => prev ? { ...prev, ...updates } : null);
+  const updateCircle = useCallback((circleId: string, updates: Partial<Circle>) => {
+    setCircles(prev => prev.map(c => c.id === circleId ? { ...c, ...updates } : c));
   }, []);
 
-  const deleteCircle = useCallback(() => {
-    setCircle(null);
-    setIsCircleSelected(false);
+  const deleteCircle = useCallback((circleId: string) => {
+    setCircles(prev => prev.filter(c => c.id !== circleId));
+    setSelectedCircleIds(prev => {
+      const next = new Set(prev);
+      next.delete(circleId);
+      return next;
+    });
   }, []);
 
   const addPoint = useCallback((x: number, y: number): string => {
@@ -249,10 +264,10 @@ export const useDrawingState = () => {
   }, []);
 
   const deleteSelected = useCallback(() => {
-    // Delete selected circle first
-    if (isCircleSelected) {
-      setCircle(null);
-      setIsCircleSelected(false);
+    // Delete selected circles first
+    if (selectedCircleIds.size > 0) {
+      setCircles(prev => prev.filter(c => !selectedCircleIds.has(c.id)));
+      setSelectedCircleIds(new Set());
     }
     
     // Delete selected angles
@@ -297,7 +312,7 @@ export const useDrawingState = () => {
     setSelectedPointIds(new Set());
     setSelectedLineIds(new Set());
     setSelectedAngleIds(new Set());
-  }, [selectedLineIds, selectedPointIds, selectedAngleIds, activePointId, findOrphanedPoints, isCircleSelected]);
+  }, [selectedLineIds, selectedPointIds, selectedAngleIds, activePointId, findOrphanedPoints, selectedCircleIds]);
 
   const clearAll = useCallback(() => {
     setPoints([]);
@@ -507,14 +522,14 @@ export const useDrawingState = () => {
     }));
   }, [getLineById, calculateAngleBetweenLines]);
 
-  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0 || selectedAngleIds.size > 0 || isCircleSelected;
+  const hasSelection = selectedPointIds.size > 0 || selectedLineIds.size > 0 || selectedAngleIds.size > 0 || selectedCircleIds.size > 0;
 
   return {
     points,
     lines,
     angles,
-    circle,
-    isCircleSelected,
+    circles,
+    selectedCircleIds,
     currentTool,
     setCurrentTool,
     activePointId,
@@ -533,8 +548,8 @@ export const useDrawingState = () => {
     deleteCircle,
     deleteSelected,
     clearAll,
-    setCircle,
-    setIsCircleSelected,
+    setCircles,
+    setSelectedCircleIds,
     selectPoint,
     selectLine,
     selectAngle,

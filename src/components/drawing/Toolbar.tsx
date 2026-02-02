@@ -10,7 +10,7 @@ interface ToolbarProps {
   onClearAll: () => void;
   hasData: boolean;
   angleFirstLineId: string | null;
-  hasCircle: boolean;
+  hasCircles: boolean;
 }
 
 export const Toolbar = ({ 
@@ -21,7 +21,7 @@ export const Toolbar = ({
   onClearAll,
   hasData,
   angleFirstLineId,
-  hasCircle,
+  hasCircles,
 }: ToolbarProps) => {
   return (
     <div className="space-y-2">
@@ -69,7 +69,7 @@ export const Toolbar = ({
 
       {currentTool === 'circle' && (
         <p className="text-xs text-primary/80 pl-2">
-          {hasCircle ? '點擊圓圈可選取，選取後可刪除' : '點擊畫布生成圓圈'}
+          點擊畫布生成圓圈，選取後可刪除
         </p>
       )}
 
