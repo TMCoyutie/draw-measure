@@ -72,10 +72,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     calculateLineLength,
     onResetAll,
   } = props;
+
+  // DrawingCanvas.tsx 內部
+  const [zoomScale, setZoomScale] = useState(1);
+  
+  // 處理滾輪事件
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) { // 只有在按住 Ctrl 時才縮放，避免跟頁面捲動衝突
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoomScale(prev => Math.min(Math.max(0.5, prev + delta), 3)); // 限制 0.5倍 ~ 3倍
+    }
+  };
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
-  const [zoomScale, setZoomScale] = useState(1);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   
@@ -628,15 +639,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     };
   };
 
-  // 處理滾輪縮放
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoomScale(prev => Math.min(Math.max(0.5, prev + delta), 3));
-    }
-  };
-
   return (
     <div 
       ref={containerRef}
@@ -648,12 +650,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
           <p className="text-lg">點擊右側按鈕或直接 <kbd className="px-2 py-1 bg-slate-100 rounded border shadow-sm text-sm">Ctrl + V</kbd> 貼上圖片開始繪圖</p>
         </div>
       ) : (
+        /* 1. 確保這個 div 有 'group' 類名，這樣才能控制內部的按鈕顯示 */
         <div 
           className="relative inline-block shadow-2xl rounded-lg overflow-hidden group"
           style={{ 
             transform: `scale(${zoomScale})`, 
-            transformOrigin: 'center center',
-            transition: 'transform 0.1s ease-out',
+            transformOrigin: 'center center', // 如果希望縮放時圖片保持在容器中央
+            transition: 'transform 0.1s ease-out', // 讓縮放有一點滑順感
           }}
         >
     
