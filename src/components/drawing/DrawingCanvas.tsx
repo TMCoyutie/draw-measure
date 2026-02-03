@@ -100,23 +100,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
   const lastDragEndTimeRef = useRef<number>(0);
 
-  // 使用原生事件監聽器來阻止瀏覽器預設的 Ctrl+滾輪縮放
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        setZoomScale(prev => Math.min(Math.max(0.5, prev + delta), 3));
-      }
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
-
   // 匯出邏輯
   const handleExportImage = () => {
     if (!imageSize || !containerRef.current) return;
@@ -327,27 +310,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     if (currentTool === 'marker') {
       const svg = e.currentTarget;
       const rect = svg.getBoundingClientRect();
-      // 除以 zoomScale 修正縮放後的座標
-      const x = (e.clientX - rect.left) / zoomScale;
-      const y = (e.clientY - rect.top) / zoomScale;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       onCanvasClick(x, y);
     } else if (currentTool === 'cursor') {
       onClearSelection();
     } else if (currentTool === 'circle') {
       const svg = e.currentTarget;
       const rect = svg.getBoundingClientRect();
-      // 除以 zoomScale 修正縮放後的座標
-      const x = (e.clientX - rect.left) / zoomScale;
-      const y = (e.clientY - rect.top) / zoomScale;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       onCircleToolClick(x, y);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    // 除以 zoomScale 修正縮放後的座標
-    const x = (e.clientX - rect.left) / zoomScale;
-    const y = (e.clientY - rect.top) / zoomScale;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
     
     // Handle circle move dragging
     if (isDraggingCircle && circleMoveStart && draggingCircleId) {
@@ -648,9 +628,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     };
   };
 
+  // 處理滾輪縮放
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoomScale(prev => Math.min(Math.max(0.5, prev + delta), 3));
+    }
+  };
+
   return (
     <div 
       ref={containerRef}
+      onWheel={handleWheel}
       className="canvas-container flex-1 flex items-center justify-center p-8 overflow-auto"
     >
       {!image ? (
