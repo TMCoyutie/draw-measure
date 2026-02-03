@@ -317,28 +317,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     if (now - lastDragEndTimeRef.current < 200) {
       return;
     }
+
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
     
     if (currentTool === 'marker') {
-      const svg = e.currentTarget;
-      const rect = svg.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
       onCanvasClick(x, y);
     } else if (currentTool === 'cursor') {
       onClearSelection();
     } else if (currentTool === 'circle') {
-      const svg = e.currentTarget;
-      const rect = svg.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
       onCircleToolClick(x, y);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
     
     // Handle circle move dragging
     if (isDraggingCircle && circleMoveStart && draggingCircleId) {
@@ -491,8 +488,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const svg = (e.target as Element).closest('svg');
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
     
     setIsDraggingCircle(true);
     setDraggingCircleId(circle.id);
