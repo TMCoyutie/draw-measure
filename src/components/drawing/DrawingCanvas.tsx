@@ -32,7 +32,7 @@ interface DrawingCanvasProps {
   getPointById: (id: string) => Point | undefined;
   calculateLineLength: (line: Line) => number;
   onResetAll: () => void;
-}
+} 
 
 // 定義暴露給父組件的方法介面
 export interface DrawingCanvasRef {
