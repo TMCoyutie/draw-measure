@@ -75,6 +75,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [zoomScale, setZoomScale] = useState(1);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   
@@ -627,9 +628,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     };
   };
 
+  // 處理滾輪縮放
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoomScale(prev => Math.min(Math.max(0.5, prev + delta), 3));
+    }
+  };
+
   return (
     <div 
       ref={containerRef}
+      onWheel={handleWheel}
       className="canvas-container flex-1 flex items-center justify-center p-8 overflow-auto"
     >
       {!image ? (
@@ -637,8 +648,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
           <p className="text-lg">點擊右側按鈕或直接 <kbd className="px-2 py-1 bg-slate-100 rounded border shadow-sm text-sm">Ctrl + V</kbd> 貼上圖片開始繪圖</p>
         </div>
       ) : (
-        /* 1. 確保這個 div 有 'group' 類名，這樣才能控制內部的按鈕顯示 */
-        <div className="relative inline-block shadow-2xl rounded-lg overflow-hidden group">
+        <div 
+          className="relative inline-block shadow-2xl rounded-lg overflow-hidden group"
+          style={{ 
+            transform: `scale(${zoomScale})`, 
+            transformOrigin: 'center center',
+            transition: 'transform 0.1s ease-out',
+          }}
+        >
     
           {/* 2. 在這裡插入重置按鈕 (位於 svg 之前) */}
           <button
