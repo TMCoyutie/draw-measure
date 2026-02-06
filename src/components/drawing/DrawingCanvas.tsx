@@ -33,7 +33,7 @@ interface DrawingCanvasProps {
   calculateLineLength: (line: Line) => number;
   onResetAll: () => void;
   scale: number;
-}
+} 
 
 // 定義暴露給父組件的方法介面
 export interface DrawingCanvasRef {
