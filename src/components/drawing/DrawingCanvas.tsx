@@ -33,6 +33,7 @@ interface DrawingCanvasProps {
   calculateLineLength: (line: Line) => number;
   onResetAll: () => void;
   scale: number;
+  showZoomLabel: boolean;
 } 
 
 // 定義暴露給父組件的方法介面
@@ -73,6 +74,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     calculateLineLength,
     onResetAll,
     scale,
+    showZoomLabel,
   } = props;
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -638,6 +640,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ) : (
         /* 1. 確保這個 div 有 'group' 類名，這樣才能控制內部的按鈕顯示 */
         <div className="relative inline-block shadow-2xl rounded-lg overflow-hidden group">
+
+          {/* --- 新增：顯示比例標籤 --- */}
+          <div 
+            className={`absolute top-4 left-4 z-[100] px-3 py-1.5 bg-black/60 backdrop-blur-md text-white rounded-md text-sm font-mono transition-opacity duration-300 pointer-events-none ${
+              showZoomLabel ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            顯示比例：{Math.round(scale * 100)}%
+          </div>
           
           {/* 2. 在這裡插入重置按鈕 (位於 svg 之前) */}
           <button
