@@ -104,6 +104,23 @@ const Index = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [image, setImage]); // 記得把 image 加入相依陣列中
 
+  // 在 Index 組件內新增
+  const [scale, setScale] = useState(1);
+  
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault(); // 關鍵：阻止瀏覽器縮放整個網頁
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setScale(prev => Math.min(Math.max(0.5, prev + delta), 3)); // 限制縮放範圍在 0.5x ~ 3x
+      }
+    };
+  
+    // 監聽整個 window 或特定的 container
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, []);
+  
   const handleResetAll = () => {
     clearAll();      // 清掉所有繪圖資料
     setCircles([]);
@@ -232,6 +249,7 @@ const Index = () => {
           getPointById={getPointById}
           calculateLineLength={calculateLineLength}
           onResetAll={handleResetAll}
+          scale={scale}
         />
       </div>
 
