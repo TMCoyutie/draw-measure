@@ -106,19 +106,32 @@ const Index = () => {
 
   // 在 Index 組件內新增
   const [scale, setScale] = useState(1);
+  const [showZoomLabel, setShowZoomLabel] = useState(false);
+  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault(); // 關鍵：阻止瀏覽器縮放整個網頁
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        setScale(prev => Math.min(Math.max(0.5, prev + delta), 3)); // 限制縮放範圍在 0.5x ~ 3x
+        setScale(prev => {
+          const next = Math.min(Math.max(0.5, prev + delta), 3); // 限制縮放範圍在 0.5x ~ 3x
+
+          // --- 新增：觸發標籤顯示 ---
+          setShowZoomLabel(true);
+          if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+          zoomTimeoutRef.current = setTimeout(() => setShowZoomLabel(false), 1500); // 1.5秒後消失
+          return next;
+        });
       }
     };
   
     // 監聽整個 window 或特定的 container
     window.addEventListener('wheel', handleWheel, { passive: false });
-    return () => window.removeEventListener('wheel', handleWheel);
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+    };
   }, []);
   
   const handleResetAll = () => {
@@ -250,6 +263,7 @@ const Index = () => {
           calculateLineLength={calculateLineLength}
           onResetAll={handleResetAll}
           scale={scale}
+          showZoomLabel={showZoomLabel}
         />
       </div>
 
