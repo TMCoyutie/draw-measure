@@ -113,144 +113,133 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
   
-    // 動態比例：在大圖上 (例如 3000px) 自動放大字體與線條
-    const baseScale = Math.max(1, canvas.width / 1000); 
-    const fontSize = Math.round(14 * baseScale);
-    const fontStyle = `bold ${fontSize}px Arial, sans-serif`;
+    // --- 動態縮放係數計算 ---
+    // 以 1000px 為基準，900px 的圖 factor 大約是 0.9
+    const factor = canvas.width / 1000;
+    const fontSize = Math.max(12, 16 * factor); // 最小不低於 12px
+    const markerSize = Math.max(4, 6 * factor);
+    const lineWidth = Math.max(2, 3 * factor);
   
     const COLORS = {
-      ACCENT: '#10b981',      // 翡翠綠
-      MARKER: '#3b82f6',      // 標點藍
-      SELECTED_1: '#7dd3fc',  // 淺藍
-      SELECTED_2: '#0369a1',  // 深藍
-      ANGLE: '#2dd4bf',       // 青色
-      CIRCLE: '#ef4444',      // 紅色
+      ACCENT: '#10b981',
+      MARKER: '#3b82f6',
+      ANGLE: '#2dd4bf',
+      CIRCLE: '#ef4444',
+      TEXT_BG: 'rgba(0, 0, 0, 0.75)' // 稍微加深背景提高對比
     };
   
     // 1. 底圖
     const backgroundImg = new Image();
     backgroundImg.crossOrigin = "anonymous";
     backgroundImg.src = image;
-    await new Promise((resolve) => {
-      backgroundImg.onload = resolve;
-      backgroundImg.onerror = () => resolve(null);
-    });
+    await new Promise((resolve) => { backgroundImg.onload = resolve; });
     ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
   
-    // 2. 圓圈 (Circles) & 十字準星
+    // 2. 圓圈與十字準星 (十字消失的修正就在這裡)
     circles.forEach(circle => {
       ctx.save();
-      // 圓形虛線
       ctx.beginPath();
-      ctx.setLineDash([fontSize/2, fontSize/3]);
+      ctx.setLineDash([5 * factor, 3 * factor]); // 虛線也跟著縮放
       ctx.strokeStyle = COLORS.CIRCLE;
-      ctx.lineWidth = 2 * baseScale;
+      ctx.lineWidth = lineWidth;
       ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
       ctx.stroke();
   
-      // --- 重點修正：重置虛線，否則十字準星會不見 ---
+      // 重要：畫完虛線必須清空設定，否則十字準星會變成隱形虛線
       ctx.setLineDash([]); 
       ctx.beginPath();
-      const crossSize = 12 * baseScale;
-      ctx.moveTo(circle.centerX - crossSize, circle.centerY);
-      ctx.lineTo(circle.centerX + crossSize, circle.centerY);
-      ctx.moveTo(circle.centerX, circle.centerY - crossSize);
-      ctx.lineTo(circle.centerX, circle.centerY + crossSize);
+      const cs = 10 * factor; // 十字大小
+      ctx.moveTo(circle.centerX - cs, circle.centerY);
+      ctx.lineTo(circle.centerX + cs, circle.centerY);
+      ctx.moveTo(circle.centerX, circle.centerY - cs);
+      ctx.lineTo(circle.centerX, circle.centerY + cs);
       ctx.stroke();
-  
-      // 中心白點
-      ctx.beginPath();
-      ctx.arc(circle.centerX, circle.centerY, 2 * baseScale, 0, Math.PI * 2);
-      ctx.fillStyle = 'white';
-      ctx.fill();
       ctx.restore();
     });
   
-    // 3. 角度弧線 (Angles)
+    // 3. 角度標籤 (處理 getAngleArc 回傳的物件)
     angles.forEach(angle => {
       const arcData = getAngleArc(angle);
       if (!arcData) return;
       ctx.save();
-      ctx.fillStyle = 'rgba(45, 212, 191, 0.3)';
+      // 扇形
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.2)';
       ctx.fill(new Path2D(arcData.fillPath));
+      // 弧線
       ctx.strokeStyle = COLORS.ANGLE;
-      ctx.lineWidth = 2 * baseScale;
+      ctx.lineWidth = lineWidth;
       ctx.stroke(new Path2D(arcData.path));
   
+      // 角度標籤
       const text = `${arcData.degrees.toFixed(1)}°`;
-      ctx.font = fontStyle;
-      const tw = ctx.measureText(text).width;
-      const padding = fontSize * 0.8;
-      ctx.fillStyle = COLORS.ANGLE;
-      ctx.beginPath();
-      ctx.roundRect(arcData.labelX - (tw+padding)/2, arcData.labelY - fontSize/1.2, tw + padding, fontSize * 1.6, 6);
-      ctx.fill();
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, arcData.labelX, arcData.labelY);
+      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, COLORS.ANGLE, fontSize, factor);
       ctx.restore();
     });
   
-    // 4. 線段與標籤 (Lines)
+    // 4. 線段與長度標籤 (處理 getDisplayLabel 回傳的字串)
     lines.forEach(line => {
       const start = points.find(p => p.id === line.startPointId);
       const end = points.find(p => p.id === line.endPointId);
       if (!start || !end) return;
   
-      let color = COLORS.ACCENT;
-      const selectedArray = Array.from(selectedLineIds);
-      const idx = selectedArray.indexOf(line.id);
-      if (idx !== -1) color = idx === 0 ? COLORS.SELECTED_1 : COLORS.SELECTED_2;
-  
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3 * baseScale;
+      ctx.strokeStyle = COLORS.ACCENT; // 你可以根據選中狀態改顏色
+      ctx.lineWidth = lineWidth;
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
       if (showLengthLabels) {
-        const text = getDisplayLabel(line); // 取得 "A" 或 "12.5cm"
+        const text = getDisplayLabel(line);
         if (text) {
-          ctx.font = fontStyle;
-          const tw = ctx.measureText(text).width;
           const mx = (start.x + end.x) / 2;
           const my = (start.y + end.y) / 2;
-          const padding = fontSize * 0.8;
-          
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.roundRect(mx - (tw+padding)/2, my - fontSize/1.2, tw + padding, fontSize * 1.6, 4);
-          ctx.fill();
-          
-          ctx.fillStyle = 'white';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(text, mx, my);
+          drawLabelBox(ctx, text, mx, my, COLORS.ACCENT, fontSize, factor);
         }
       }
       ctx.restore();
     });
   
-    // 5. 標點 (Points)
+    // 5. 標點 (最後畫，確保在最上面)
     points.forEach(point => {
-      const isActive = activePointId === point.id;
-      const isSelected = selectedPointIds.has(point.id);
       ctx.save();
       ctx.beginPath();
-      ctx.fillStyle = isActive ? COLORS.ACCENT : COLORS.MARKER;
-      const r = (isActive || isSelected ? 8 : 6) * baseScale;
-      ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.MARKER;
+      ctx.arc(point.x, point.y, markerSize, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'white';
-      ctx.lineWidth = 1.5 * baseScale;
+      ctx.lineWidth = 1.5 * factor;
       ctx.stroke();
       ctx.restore();
     });
   
     return canvas;
+  };
+  
+  // --- 輔助函式：統一標籤繪製風格 ---
+  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bgColor: string, fontSize: number, factor: number) => {
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    const metrics = ctx.measureText(text);
+    const paddingX = 8 * factor;
+    const paddingY = 4 * factor;
+    const w = metrics.width + paddingX * 2;
+    const h = fontSize + paddingY * 2;
+  
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    // 使用矩形，並確保居中
+    if (ctx.roundRect) {
+      ctx.roundRect(x - w/2, y - h/2, w, h, 4 * factor);
+    } else {
+      ctx.rect(x - w/2, y - h/2, w, h);
+    }
+    ctx.fill();
+  
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
   };
   
   // 匯出圖片
