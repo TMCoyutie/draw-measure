@@ -103,188 +103,117 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
   const lastDragEndTimeRef = useRef<number>(0);
 
-  // 匯出邏輯
-  const handleExportImage = () => {
-    if (!imageSize || !containerRef.current) return;
-    const svgElement = containerRef.current.querySelector('svg');
-    if (!svgElement) return;
-
-    // 1. 複製 SVG 節點
-    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-
-    // 獲取所有原始元素與複製元素的清單
-    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
-    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
-
-    // 2. 同步樣式：直接從畫面上抓取「目前的顏色」並寫入複製品中
-    clonedElements.forEach((el, index) => {
-      const originalEl = originalElements[index] as HTMLElement;
-      const clonedEl = el as HTMLElement;
-      if (!originalEl || !clonedEl) return;
-
-      const style = window.getComputedStyle(originalEl);
-
-      // 針對不同標籤類型同步顏色屬性
-      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
-        // 移除感應用的透明線
-        if (clonedEl.getAttribute('stroke') === 'transparent') {
-          clonedEl.remove();
-          return;
-        }
-        clonedEl.setAttribute('stroke', style.stroke);
-        clonedEl.style.stroke = style.stroke;
-        clonedEl.setAttribute('stroke-width', style.strokeWidth);
-      }
-
-      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.setAttribute('stroke', style.stroke); // 同步邊框
-      }
-
-      if (clonedEl.tagName === 'text') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.style.fontFamily = 'sans-serif'; // 確保字體一致
-        clonedEl.style.fontSize = style.fontSize;
-        clonedEl.style.fontWeight = style.fontWeight;
-      }
-    });
-
-    // 3. 修復 Points 的位移 (處理 translate)
-    clonedSvg.querySelectorAll('g').forEach((g) => {
-      const styleAttr = g.getAttribute('style');
-      if (styleAttr && styleAttr.includes('translate')) {
-        const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
-        if (match) {
-          g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
-        }
-      }
-    });
-
-    // 4. 轉為圖片邏輯 (保持不變)
-    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+  // 在 DrawingCanvas 組件內部定義這個輔助函式
+  const drawEverythingToCanvas = async (): Promise<HTMLCanvasElement | null> => {
+    if (!image || !imageSize) return null;
+  
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-
     canvas.width = imageSize.width;
     canvas.height = imageSize.height;
-
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    img.onload = () => {
-      const backgroundImg = new Image();
-      backgroundImg.onload = () => {
-        if (ctx) {
-          ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        }
-        
-        const link = document.createElement('a');
-        link.download = `測量結果-${new Date().getTime()}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-        URL.revokeObjectURL(url);
-      };
-      backgroundImg.src = image || '';
-    };
-    img.src = url;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+  
+    // 1. 繪製底圖
+    const backgroundImg = new Image();
+    backgroundImg.crossOrigin = "anonymous";
+    backgroundImg.src = image;
+    
+    await new Promise((resolve) => {
+      backgroundImg.onload = resolve;
+    });
+    ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+  
+    // 2. 設置繪圖樣式
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  
+    // 3. 繪製圓圈 (Circles)
+    circles.forEach(circle => {
+      ctx.beginPath();
+      ctx.setLineDash([4, 2]);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      // 十字準星
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(circle.centerX - 10, circle.centerY);
+      ctx.lineTo(circle.centerX + 10, circle.centerY);
+      ctx.moveTo(circle.centerX, circle.centerY - 10);
+      ctx.lineTo(circle.centerX, circle.centerY + 10);
+      ctx.stroke();
+    });
+  
+    // 4. 繪製線段 (Lines)
+    lines.forEach(line => {
+      const start = points.find(p => p.id === line.startPointId);
+      const end = points.find(p => p.id === line.endPointId);
+      if (!start || !end) return;
+  
+      ctx.beginPath();
+      ctx.strokeStyle = '#10b981'; // 翡翠綠
+      ctx.lineWidth = 3;
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+  
+      // 繪製標籤 (如果需要)
+      if (showLengthLabels) {
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2;
+        const label = line.label || '';
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(midX - 15, midY - 10, 30, 20);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, midX, midY + 5);
+      }
+    });
+  
+    // 5. 繪製點 (Points)
+    points.forEach(point => {
+      ctx.beginPath();
+      ctx.fillStyle = '#f43f5e'; // 玫瑰紅
+      ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  
+    return canvas;
   };
   
-  // 複製圖片到剪貼簿邏輯
+  // 匯出圖片
+  const handleExportImage = async () => {
+    const canvas = await drawEverythingToCanvas();
+    if (!canvas) return;
+  
+    const link = document.createElement('a');
+    link.download = `測量結果-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+  
+  // 複製圖片到剪貼簿
   const handleCopyImage = async () => {
-    if (!imageSize || !containerRef.current) return;
-    const svgElement = containerRef.current.querySelector('svg');
-    if (!svgElement) return;
-
-    // 複製 SVG 節點（與匯出邏輯相同）
-    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
-    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
-
-    clonedElements.forEach((el, index) => {
-      const originalEl = originalElements[index] as HTMLElement;
-      const clonedEl = el as HTMLElement;
-      if (!originalEl || !clonedEl) return;
-
-      const style = window.getComputedStyle(originalEl);
-
-      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
-        if (clonedEl.getAttribute('stroke') === 'transparent') {
-          clonedEl.remove();
-          return;
+    const canvas = await drawEverythingToCanvas();
+    if (!canvas) return;
+  
+    try {
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          const item = new ClipboardItem({ "image/png": blob });
+          await navigator.clipboard.write([item]);
+          alert("圖片已成功複製到剪貼簿！");
         }
-        clonedEl.setAttribute('stroke', style.stroke);
-        clonedEl.style.stroke = style.stroke;
-        clonedEl.setAttribute('stroke-width', style.strokeWidth);
-      }
-
-      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.setAttribute('stroke', style.stroke);
-      }
-
-      if (clonedEl.tagName === 'text') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.style.fontFamily = 'sans-serif';
-        clonedEl.style.fontSize = style.fontSize;
-        clonedEl.style.fontWeight = style.fontWeight;
-      }
-    });
-
-    clonedSvg.querySelectorAll('g').forEach((g) => {
-      const styleAttr = g.getAttribute('style');
-      if (styleAttr && styleAttr.includes('translate')) {
-        const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
-        if (match) {
-          g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
-        }
-      }
-    });
-
-    const svgData = new XMLSerializer().serializeToString(clonedSvg);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-
-    canvas.width = imageSize.width;
-    canvas.height = imageSize.height;
-
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    return new Promise<void>((resolve) => {
-      img.onload = () => {
-        const backgroundImg = new Image();
-        backgroundImg.onload = async () => {
-          if (ctx) {
-            ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-          }
-          
-          // 將 canvas 轉為 Blob 並複製到剪貼簿
-          canvas.toBlob(async (blob) => {
-            if (blob) {
-              try {
-                await navigator.clipboard.write([
-                  new ClipboardItem({ 'image/png': blob })
-                ]);
-              } catch (err) {
-                console.error('Failed to copy image:', err);
-              }
-            }
-            URL.revokeObjectURL(url);
-            resolve();
-          }, 'image/png');
-        };
-        backgroundImg.src = image || '';
-      };
-      img.src = url;
-    });
+      }, 'image/png');
+    } catch (err) {
+      console.error("複製失敗:", err);
+      alert("您的瀏覽器可能不支援此複製功能。");
+    }
   };
   
   // 暴露方法
