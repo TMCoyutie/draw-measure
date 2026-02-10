@@ -163,8 +163,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.restore();
     });
   
-    // 4. 線段與標籤 (支援代號與長度切換)
-    lines.forEach(line => {
+    // 4. 線段與標籤
+    lines.forEach((line, index) => {
       const start = points.find(p => p.id === line.startPointId);
       const end = points.find(p => p.id === line.endPointId);
       if (!start || !end) return;
@@ -178,15 +178,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.stroke();
   
       if (showLengthLabels) {
-        // 重點：調用 getDisplayLabel 確保邏輯與 UI 完全一致
-        const labelText = getDisplayLabel(line); 
+        // --- 強力修正處：如果 line.label 沒東西，就手動給它 A, B, C ---
+        let text = getDisplayLabel(line); 
         
-        // 只要 labelText 有內容 (不管是 "A" 還是 "10cm") 就繪製
-        if (labelText && labelText.trim() !== "") {
-          const mx = (start.x + end.x) / 2;
-          const my = (start.y + end.y) / 2;
-          drawLabelBox(ctx, labelText, mx, my, '#10b981', fontSize, f);
+        // 如果 getDisplayLabel 回傳空字串或 null，強行根據索引給字母
+        if (!text || text.trim() === "") {
+          text = String.fromCharCode(65 + (index % 26)); // 0->A, 1->B...
         }
+  
+        const mx = (start.x + end.x) / 2;
+        const my = (start.y + end.y) / 2;
+        drawLabelBox(ctx, text, mx, my, '#10b981', fontSize, f);
       }
       ctx.restore();
     });
