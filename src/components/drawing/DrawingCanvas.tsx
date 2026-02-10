@@ -218,7 +218,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   // 輔助函式：繪製標籤底框與文字
   const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, fontSize: number, f: number) => {
     // 1. 對齊網頁字體：優先順序與系統 UI 一致
-    ctx.font = `600 ${fontSize}px "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    ctx.font = `500 ${fontSize}px "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
     
     const metrics = ctx.measureText(text);
     
@@ -229,12 +229,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const rh = fontSize + py;
     const radius = 6 * f; // 圓角半徑
   
-    // 3. 繪製陰影 (讓標籤更有層次感，網頁上通常有微小陰影)
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-    ctx.shadowBlur = 4 * f;
-    ctx.shadowOffsetY = 2 * f;
-  
     ctx.fillStyle = color;
     ctx.beginPath();
     if (ctx.roundRect) {
@@ -243,7 +237,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.rect(x - rw / 2, y - rh / 2, rw, rh);
     }
     ctx.fill();
-    ctx.restore(); // 關閉陰影，避免影響文字
   
     // 4. 繪製文字
     ctx.fillStyle = 'white';
