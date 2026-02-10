@@ -113,34 +113,32 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
   
-    // 根據 900x600 的比例自動調整縮放係數
-    const factor = canvas.width / 1000;
-    const fontSize = Math.max(14, 18 * factor);
-    const lineWidth = Math.max(2, 3 * factor);
+    // 動態比例：確保 900x600 下標籤大小適中
+    const f = canvas.width / 1000;
+    const fontSize = Math.max(14, 18 * f);
+    const lineWidth = Math.max(2, 3 * f);
   
-    // 1. 底圖
+    // 1. 繪製底圖
     const backgroundImg = new Image();
     backgroundImg.crossOrigin = "anonymous";
     backgroundImg.src = image;
     await new Promise((resolve) => { backgroundImg.onload = resolve; });
     ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
   
-    // 2. 圓圈與十字準星 (關鍵：重置虛線)
+    // 2. 圓圈 (虛線圓 + 十字實線)
     circles.forEach(circle => {
       ctx.save();
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = lineWidth;
-      
-      // 畫圓圈 (虛線)
       ctx.beginPath();
-      ctx.setLineDash([5 * factor, 3 * factor]);
+      ctx.setLineDash([5 * f, 3 * f]);
       ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
       ctx.stroke();
   
-      // --- 關鍵修正：清空虛線設定，十字準星才會出現 ---
-      ctx.setLineDash([]); 
+      // 關鍵：清除虛線狀態，繪製實線十字
+      ctx.setLineDash([]);
       ctx.beginPath();
-      const cs = 12 * factor;
+      const cs = 12 * f;
       ctx.moveTo(circle.centerX - cs, circle.centerY);
       ctx.lineTo(circle.centerX + cs, circle.centerY);
       ctx.moveTo(circle.centerX, circle.centerY - cs);
@@ -149,7 +147,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.restore();
     });
   
-    // 3. 角度標籤 (與畫面完全同步)
+    // 3. 角度標籤
     angles.forEach(angle => {
       const arcData = getAngleArc(angle);
       if (!arcData) return;
@@ -161,11 +159,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.stroke(new Path2D(arcData.path));
   
       const text = `${arcData.degrees.toFixed(1)}°`;
-      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, '#2dd4bf', fontSize, factor);
+      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, '#2dd4bf', fontSize, f);
       ctx.restore();
     });
   
-    // 4. 線段與標籤 (自動偵測目前的字母或長度模式)
+    // 4. 線段與標籤 (支援代號與長度切換)
     lines.forEach(line => {
       const start = points.find(p => p.id === line.startPointId);
       const end = points.find(p => p.id === line.endPointId);
@@ -173,33 +171,36 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = '#10b981'; 
+      ctx.strokeStyle = '#10b981';
       ctx.lineWidth = lineWidth;
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
       if (showLengthLabels) {
-        // 直接呼叫你組件內定義的 getDisplayLabel，它會處理字母/長度的切換
-        const text = getDisplayLabel(line); 
-        if (text) {
+        // 重點：調用 getDisplayLabel 確保邏輯與 UI 完全一致
+        const labelText = getDisplayLabel(line); 
+        
+        // 只要 labelText 有內容 (不管是 "A" 還是 "10cm") 就繪製
+        if (labelText && labelText.trim() !== "") {
           const mx = (start.x + end.x) / 2;
           const my = (start.y + end.y) / 2;
-          drawLabelBox(ctx, text, mx, my, '#10b981', fontSize, factor);
+          drawLabelBox(ctx, labelText, mx, my, '#10b981', fontSize, f);
         }
       }
       ctx.restore();
     });
   
-    // 5. 標點
+    // 5. 標點 (繪製在最頂層)
     points.forEach(point => {
+      const isActive = activePointId === point.id;
       ctx.save();
       ctx.beginPath();
-      ctx.fillStyle = activePointId === point.id ? '#10b981' : '#3b82f6';
-      ctx.arc(point.x, point.y, 6 * factor, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? '#10b981' : '#3b82f6';
+      ctx.arc(point.x, point.y, 6 * f, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'white';
-      ctx.lineWidth = 1.5 * factor;
+      ctx.lineWidth = 1.5 * f;
       ctx.stroke();
       ctx.restore();
     });
@@ -207,27 +208,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     return canvas;
   };
   
-  // 統一的標籤渲染輔助函式 (確保置中與背景框)
-  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, fontSize: number, f: number) => {
+  // 輔助函式：繪製標籤底框與文字
+  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bgColor: string, fontSize: number, f: number) => {
     ctx.font = `bold ${fontSize}px Arial, sans-serif`;
     const metrics = ctx.measureText(text);
-    const pw = 10 * f; 
-    const ph = 6 * f;
-    const rw = metrics.width + pw;
-    const rh = fontSize + ph;
+    
+    // padding 比例化
+    const px = 10 * f;
+    const py = 6 * f;
+    const rw = metrics.width + px;
+    const rh = fontSize + py;
   
-    ctx.fillStyle = color;
+    // 1. 畫背景框
+    ctx.fillStyle = bgColor;
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(x - rw / 2, y - rh / 2, rw, rh, 4 * f);
+      ctx.roundRect(x - rw / 2, y - rh / 2, rw, rh, 5 * f);
     } else {
       ctx.rect(x - rw / 2, y - rh / 2, rw, rh);
     }
     ctx.fill();
   
+    // 2. 畫文字
     ctx.fillStyle = 'white';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textBaseline = 'middle'; // 垂直居中關鍵
     ctx.fillText(text, x, y);
   };
   
