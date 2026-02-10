@@ -170,6 +170,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       if (!start || !end) return;
   
       ctx.save();
+      // 繪製線段
       ctx.beginPath();
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = lineWidth;
@@ -177,19 +178,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
+      // --- 標籤邏輯：移出 showLengthLabels 的限制 ---
+      let text = "";
       if (showLengthLabels) {
-        // --- 強力修正處：如果 line.label 沒東西，就手動給它 A, B, C ---
-        let text = getDisplayLabel(line); 
-        
-        // 如果 getDisplayLabel 回傳空字串或 null，強行根據索引給字母
-        if (!text || text.trim() === "") {
-          text = String.fromCharCode(65 + (index % 26)); // 0->A, 1->B...
-        }
+        // 模式 A：顯示長度 (例如 10.5cm)
+        text = getDisplayLabel(line);
+      } else {
+        // 模式 B：顯示代號 (例如 A, B, C)
+        // 優先取 line.label，若無則根據 index 生成字母
+        text = line.label || String.fromCharCode(65 + (index % 26));
+      }
   
+      if (text && text.trim() !== "") {
         const mx = (start.x + end.x) / 2;
         const my = (start.y + end.y) / 2;
         drawLabelBox(ctx, text, mx, my, '#10b981', fontSize, f);
       }
+      
       ctx.restore();
     });
   
