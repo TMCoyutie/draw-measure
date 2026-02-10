@@ -114,47 +114,77 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     // 移除背景 <image> 元素（背景會單獨繪製到 canvas 上）
     clonedSvg.querySelectorAll('image').forEach(el => el.remove());
 
-    // 設定正確的 xmlns 和 viewBox，確保序列化後能正確渲染
+    // 設定正確的 xmlns 和 viewBox
     clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     clonedSvg.setAttribute('viewBox', `0 0 ${imageSize.width} ${imageSize.height}`);
     clonedSvg.setAttribute('width', String(imageSize.width));
     clonedSvg.setAttribute('height', String(imageSize.height));
 
-    // 同步樣式
-    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
-    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
+    // 移除所有 class 屬性（SVG 以 <img> 渲染時無法解析外部 CSS）
+    clonedSvg.querySelectorAll('[class]').forEach(el => {
+      el.removeAttribute('class');
+    });
 
+    // 同步所有可見元素的計算樣式
+    const allSelector = 'path, line, circle, rect, text, ellipse, polygon, polyline';
+    const originalElements = svgElement.querySelectorAll(allSelector);
+    const clonedElements = clonedSvg.querySelectorAll(allSelector);
+
+    const elementsToRemove: Element[] = [];
+    
     clonedElements.forEach((el, index) => {
       const originalEl = originalElements[index] as HTMLElement;
-      const clonedEl = el as HTMLElement;
+      const clonedEl = el as SVGElement;
       if (!originalEl || !clonedEl) return;
 
       const style = window.getComputedStyle(originalEl);
 
-      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
-        if (clonedEl.getAttribute('stroke') === 'transparent') {
-          clonedEl.remove();
+      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path' || clonedEl.tagName === 'polyline' || clonedEl.tagName === 'polygon') {
+        if (clonedEl.getAttribute('stroke') === 'transparent' || style.stroke === 'transparent' || style.stroke === 'rgba(0, 0, 0, 0)') {
+          elementsToRemove.push(clonedEl);
           return;
         }
-        clonedEl.setAttribute('stroke', style.stroke);
-        clonedEl.style.stroke = style.stroke;
-        clonedEl.setAttribute('stroke-width', style.strokeWidth);
+        clonedEl.setAttribute('stroke', style.stroke || 'none');
+        clonedEl.setAttribute('stroke-width', style.strokeWidth || '2');
+        clonedEl.setAttribute('fill', style.fill || 'none');
+        if (style.strokeDasharray && style.strokeDasharray !== 'none') {
+          clonedEl.setAttribute('stroke-dasharray', style.strokeDasharray);
+        }
+        if (style.fillOpacity) {
+          clonedEl.setAttribute('fill-opacity', style.fillOpacity);
+        }
       }
 
-      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.setAttribute('stroke', style.stroke);
+      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect' || clonedEl.tagName === 'ellipse') {
+        const computedFill = style.fill;
+        if (clonedEl.getAttribute('fill') === 'transparent' || computedFill === 'rgba(0, 0, 0, 0)') {
+          elementsToRemove.push(clonedEl);
+          return;
+        }
+        clonedEl.setAttribute('fill', computedFill || 'none');
+        clonedEl.setAttribute('stroke', style.stroke || 'none');
+        if (style.strokeWidth) clonedEl.setAttribute('stroke-width', style.strokeWidth);
+        if (style.strokeDasharray && style.strokeDasharray !== 'none') {
+          clonedEl.setAttribute('stroke-dasharray', style.strokeDasharray);
+        }
+        if (style.fillOpacity) {
+          clonedEl.setAttribute('fill-opacity', style.fillOpacity);
+        }
       }
 
       if (clonedEl.tagName === 'text') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.style.fontFamily = 'sans-serif';
-        clonedEl.style.fontSize = style.fontSize;
-        clonedEl.style.fontWeight = style.fontWeight;
+        clonedEl.setAttribute('fill', style.fill || 'white');
+        clonedEl.setAttribute('font-family', 'Arial, sans-serif');
+        clonedEl.setAttribute('font-size', style.fontSize || '12px');
+        clonedEl.setAttribute('font-weight', style.fontWeight || 'normal');
       }
+
+      // 清除 inline style（避免殘留 CSS 變數引用）
+      clonedEl.removeAttribute('style');
     });
+
+    elementsToRemove.forEach(el => el.remove());
 
     // 修復 translate
     clonedSvg.querySelectorAll('g').forEach((g) => {
@@ -165,6 +195,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
           g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
         }
       }
+      g.removeAttribute('style');
+      g.removeAttribute('class');
     });
 
     return clonedSvg;
@@ -185,12 +217,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       canvas.width = imageSize.width;
       canvas.height = imageSize.height;
 
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
+      // 使用 base64 data URL（比 blob URL 更可靠）
+      const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
 
       // 先載入背景圖
       const backgroundImg = new Image();
-      if (image && (image.startsWith('http') || image.startsWith('//'))) {
+      if (image && !image.startsWith('data:') && !image.startsWith('blob:')) {
         backgroundImg.crossOrigin = 'anonymous';
       }
       backgroundImg.onload = () => {
@@ -200,14 +232,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
         const svgImg = new Image();
         svgImg.onload = () => {
           ctx.drawImage(svgImg, 0, 0, canvas.width, canvas.height);
-          URL.revokeObjectURL(svgUrl);
           resolve(canvas);
         };
-        svgImg.onerror = () => {
-          URL.revokeObjectURL(svgUrl);
-          reject(new Error('Failed to load SVG'));
+        svgImg.onerror = (err) => {
+          console.error('SVG image load failed:', err);
+          resolve(canvas);
         };
-        svgImg.src = svgUrl;
+        svgImg.src = svgDataUrl;
       };
       backgroundImg.onerror = () => reject(new Error('Failed to load background'));
       backgroundImg.src = image || '';
