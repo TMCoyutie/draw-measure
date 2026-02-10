@@ -154,12 +154,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.save();
       ctx.fillStyle = 'rgba(45, 212, 191, 0.25)';
       ctx.fill(new Path2D(arcData.fillPath));
-      ctx.strokeStyle = '#2dd4bf';
+      ctx.strokeStyle = '#10b981';
       ctx.lineWidth = lineWidth;
       ctx.stroke(new Path2D(arcData.path));
   
       const text = `${arcData.degrees.toFixed(1)}°`;
-      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, '#2dd4bf', fontSize, f);
+      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, '#10b981', fontSize, f);
       ctx.restore();
     });
   
@@ -204,7 +204,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.save();
       ctx.beginPath();
       ctx.fillStyle = isActive ? '#10b981' : '#3b82f6';
-      ctx.arc(point.x, point.y, 6 * f, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, 8 * f, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'white';
       ctx.lineWidth = 1.5 * f;
@@ -217,12 +217,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   
   // 輔助函式：繪製標籤底框與文字
   const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bgColor: string, fontSize: number, f: number) => {
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.font = `bold ${fontSize}px "Inter", "Segoe UI", "Roboto", "Arial", sans-serif`;
     const metrics = ctx.measureText(text);
     
     // padding 比例化
-    const px = 10 * f;
-    const py = 6 * f;
+    const px = 14 * f;
+    const py = 8 * f;
     const rw = metrics.width + px;
     const rh = fontSize + py;
   
