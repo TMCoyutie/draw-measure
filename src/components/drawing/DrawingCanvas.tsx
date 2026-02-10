@@ -104,7 +104,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   const lastDragEndTimeRef = useRef<number>(0);
 
   // 在 DrawingCanvas 組件內部定義這個輔助函式
-  const drawEverythingToCanvas = async (): Promise<HTMLCanvasElement | null> => {
+    const drawEverythingToCanvas = async (): Promise<HTMLCanvasElement | null> => {
     if (!image || !imageSize) return null;
   
     const canvas = document.createElement('canvas');
@@ -113,63 +113,48 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
   
-    // 1. 繪製底圖 (加上跨域處理)
+    // --- 顏色定義 (對齊 CSS 變數) ---
+    const COLORS = {
+      ACCENT: '#10b981',      // Emerald 500 (hsl(var(--accent)))
+      MARKER: '#3b82f6',      // Blue 500 (hsl(var(--marker-color)))
+      SELECTED: '#7dd3fc',    // Sky 300
+      DEEP_BLUE: '#0369a1',   // Blue 700
+      ANGLE: '#2dd4bf',       // Teal 400
+      RED: '#f43f5e',         // Rose 500
+    };
+  
+    // 1. 繪製底圖
     const backgroundImg = new Image();
     backgroundImg.crossOrigin = "anonymous";
     backgroundImg.src = image;
     await new Promise((resolve) => { backgroundImg.onload = resolve; });
     ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
   
-    // --- 2. 繪製圓圈與十字準星 ---
-    circles.forEach(circle => {
-      ctx.save();
-      ctx.beginPath();
-      ctx.setLineDash([4, 2]);
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2;
-      ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // 十字準星
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(circle.centerX - 12, circle.centerY); ctx.lineTo(circle.centerX + 12, circle.centerY);
-      ctx.moveTo(circle.centerX, circle.centerY - 12); ctx.lineTo(circle.centerX, circle.centerY + 12);
-      ctx.stroke();
-      
-      // 中心白點
-      ctx.beginPath();
-      ctx.arc(circle.centerX, circle.centerY, 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'white';
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    });
-  
-    // --- 3. 繪製角度 (Angle Arcs & Labels) ---
+    // --- 2. 角度 (Angles) 繪製 ---
     angles.forEach(angle => {
       const arcData = getAngleArc(angle);
       if (!arcData) return;
-  
       ctx.save();
-      // 繪製半透明扇形
-      const path = new Path2D(arcData.fillPath);
-      ctx.fillStyle = 'rgba(45, 212, 191, 0.3)'; // Teal 400 with 30% opacity
-      ctx.fill(path);
-  
-      // 繪製弧線邊框
+      // 扇形填充
+      ctx.beginPath();
+      const fillPath = new Path2D(arcData.fillPath);
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.2)'; 
+      ctx.fill(fillPath);
+      // 弧線邊框
+      ctx.beginPath();
       const strokePath = new Path2D(arcData.path);
-      ctx.strokeStyle = '#2dd4bf'; 
+      ctx.strokeStyle = COLORS.ANGLE;
       ctx.lineWidth = 2;
       ctx.stroke(strokePath);
   
-      // 角度標籤背景與文字
+      // 角度標籤 (θ)
       const label = `${arcData.degrees.toFixed(1)}°`;
-      ctx.font = 'bold 12px Arial';
+      ctx.font = 'bold 13px Inter, Arial';
       const textWidth = ctx.measureText(label).width;
-      ctx.fillStyle = '#2dd4bf';
+      const px = 10, py = 6; // 對齊 px-2.5 py-1.5
+      ctx.fillStyle = COLORS.ANGLE;
       ctx.beginPath();
-      ctx.roundRect(arcData.labelX - (textWidth+10)/2, arcData.labelY - 10, textWidth + 10, 20, 4);
+      ctx.roundRect(arcData.labelX - (textWidth+px)/2, arcData.labelY - 10, textWidth + px, 20, 6);
       ctx.fill();
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
@@ -177,13 +162,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.restore();
     });
   
-    // --- 4. 繪製線段與長度標籤 ---
+    // --- 3. 線段 (Lines) 繪製 ---
     lines.forEach(line => {
       const start = points.find(p => p.id === line.startPointId);
       const end = points.find(p => p.id === line.endPointId);
       if (!start || !end) return;
   
-      const color = getLineColor(line.id); // 直接調用組件內的顏色邏輯
+      // 顏色邏輯對齊 getLineColor
+      let color = COLORS.ACCENT;
+      const selectedArray = Array.from(selectedLineIds);
+      const idx = selectedArray.indexOf(line.id);
+      if (idx !== -1) {
+        color = idx === 0 ? COLORS.SELECTED : COLORS.DEEP_BLUE;
+      }
   
       ctx.save();
       ctx.beginPath();
@@ -193,43 +184,43 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
-      // 長度標籤
-      const displayLabel = getDisplayLabel(line);
-      const center = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-      
-      ctx.font = 'bold 12px Arial';
-      const textWidth = ctx.measureText(displayLabel).width;
-      const padding = 8;
-      
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.roundRect(center.x - (textWidth + padding) / 2, center.y - 10, textWidth + padding, 20, 4);
-      ctx.fill();
-      
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center';
-      ctx.fillText(displayLabel, center.x, center.y + 5);
+      if (showLengthLabels) {
+        const label = getDisplayLabel(line);
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2;
+        ctx.font = 'bold 12px Inter, Arial';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(midX - (tw+12)/2, midY - 10, tw + 12, 20, 4);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, midX, midY + 4);
+      }
       ctx.restore();
     });
   
-    // --- 5. 繪製標點 (Points) ---
+    // --- 4. 標點 (Points) 繪製 ---
     points.forEach(point => {
       const isActive = activePointId === point.id;
       const isSelected = selectedPointIds.has(point.id);
-      
       ctx.save();
       ctx.beginPath();
-      // 顏色匹配：Active 用 Accent, 其他用 Marker Color
-      ctx.fillStyle = isActive ? '#f43f5e' : '#3b82f6'; 
-      if (isSelected) {
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      }
-      ctx.arc(point.x, point.y, isSelected ? 8 : 6, 0, Math.PI * 2);
+      // 顏色對齊 CSS: isActive ? accent : marker-color
+      ctx.fillStyle = isActive ? COLORS.ACCENT : COLORS.MARKER;
+      ctx.arc(point.x, point.y, isActive || isSelected ? 8 : 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'white';
       ctx.lineWidth = 2;
       ctx.stroke();
+      // 如果選中，補一個外圈光暈
+      if (isSelected) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.stroke();
+      }
       ctx.restore();
     });
   
