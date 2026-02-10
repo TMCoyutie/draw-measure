@@ -216,30 +216,39 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   };
   
   // 輔助函式：繪製標籤底框與文字
-  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bgColor: string, fontSize: number, f: number) => {
-    ctx.font = `bold ${fontSize}px "Inter", "Segoe UI", "Roboto", "Arial", sans-serif`;
+  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, fontSize: number, f: number) => {
+    // 1. 對齊網頁字體：優先順序與系統 UI 一致
+    ctx.font = `600 ${fontSize}px "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    
     const metrics = ctx.measureText(text);
     
-    // padding 比例化
-    const px = 14 * f;
-    const py = 8 * f;
+    // 2. 調整 Padding 與 圓角 (對齊網頁的 px-2.5 py-1.5)
+    const px = 18 * f; // 水平內距
+    const py = 8 * f; // 垂直內距
     const rw = metrics.width + px;
     const rh = fontSize + py;
+    const radius = 6 * f; // 圓角半徑
   
-    // 1. 畫背景框
-    ctx.fillStyle = bgColor;
+    // 3. 繪製陰影 (讓標籤更有層次感，網頁上通常有微小陰影)
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+    ctx.shadowBlur = 4 * f;
+    ctx.shadowOffsetY = 2 * f;
+  
+    ctx.fillStyle = color;
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(x - rw / 2, y - rh / 2, rw, rh, 5 * f);
+      ctx.roundRect(x - rw / 2, y - rh / 2, rw, rh, radius);
     } else {
       ctx.rect(x - rw / 2, y - rh / 2, rw, rh);
     }
     ctx.fill();
+    ctx.restore(); // 關閉陰影，避免影響文字
   
-    // 2. 畫文字
+    // 4. 繪製文字
     ctx.fillStyle = 'white';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle'; // 垂直居中關鍵
+    ctx.textBaseline = 'middle';
     ctx.fillText(text, x, y);
   };
   
