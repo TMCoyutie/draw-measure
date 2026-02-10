@@ -105,103 +105,92 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
   // 匯出邏輯
   const handleExportImage = () => {
-    // 1. 基礎檢查：確保圖片與容器都已載入
-    if (!imageSize || !containerRef.current || !image) return;
-    
+    if (!imageSize || !containerRef.current) return;
     const svgElement = containerRef.current.querySelector('svg');
     if (!svgElement) return;
-  
-    try {
-      // 2. 複製 SVG 並重置其縮放屬性，確保是以 1:1 原始比例進行匯出
-      const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-      
-      // 強制設定寬高為原始圖片尺寸，並移除 CSS 的縮放影響
-      clonedSvg.setAttribute('width', imageSize.width.toString());
-      clonedSvg.setAttribute('height', imageSize.height.toString());
-      clonedSvg.style.transform = 'none';
-      clonedSvg.style.transition = 'none';
-  
-      // 3. 同步樣式：解決 HTML2Canvas 或 XMLSerializer 抓不到外部 CSS 的問題
-      const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
-      const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
-  
-      clonedElements.forEach((el, index) => {
-        const originalEl = originalElements[index] as HTMLElement;
-        if (!originalEl) return;
-  
-        const style = window.getComputedStyle(originalEl);
-        const clonedEl = el as SVGElement;
-  
-        // 針對不同標籤強制寫入 Inline Style
-        if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
-          clonedEl.setAttribute('stroke', style.stroke);
-          clonedEl.setAttribute('stroke-width', style.strokeWidth);
-          clonedEl.style.strokeOpacity = style.strokeOpacity;
+
+    // 1. 複製 SVG 節點
+    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
+
+    // 獲取所有原始元素與複製元素的清單
+    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
+    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
+
+    // 2. 同步樣式：直接從畫面上抓取「目前的顏色」並寫入複製品中
+    clonedElements.forEach((el, index) => {
+      const originalEl = originalElements[index] as HTMLElement;
+      const clonedEl = el as HTMLElement;
+      if (!originalEl || !clonedEl) return;
+
+      const style = window.getComputedStyle(originalEl);
+
+      // 針對不同標籤類型同步顏色屬性
+      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
+        // 移除感應用的透明線
+        if (clonedEl.getAttribute('stroke') === 'transparent') {
+          clonedEl.remove();
+          return;
         }
-        if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
-          clonedEl.setAttribute('fill', style.fill);
-          clonedEl.setAttribute('stroke', style.stroke);
-          clonedEl.style.fillOpacity = style.fillOpacity;
+        clonedEl.setAttribute('stroke', style.stroke);
+        clonedEl.style.stroke = style.stroke;
+        clonedEl.setAttribute('stroke-width', style.strokeWidth);
+      }
+
+      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
+        clonedEl.setAttribute('fill', style.fill);
+        clonedEl.style.fill = style.fill;
+        clonedEl.setAttribute('stroke', style.stroke); // 同步邊框
+      }
+
+      if (clonedEl.tagName === 'text') {
+        clonedEl.setAttribute('fill', style.fill);
+        clonedEl.style.fill = style.fill;
+        clonedEl.style.fontFamily = 'sans-serif'; // 確保字體一致
+        clonedEl.style.fontSize = style.fontSize;
+        clonedEl.style.fontWeight = style.fontWeight;
+      }
+    });
+
+    // 3. 修復 Points 的位移 (處理 translate)
+    clonedSvg.querySelectorAll('g').forEach((g) => {
+      const styleAttr = g.getAttribute('style');
+      if (styleAttr && styleAttr.includes('translate')) {
+        const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
+        if (match) {
+          g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
         }
-        if (clonedEl.tagName === 'text') {
-          clonedEl.setAttribute('fill', style.fill);
-          clonedEl.style.fontSize = style.fontSize;
-          clonedEl.style.fontFamily = 'Arial, sans-serif';
-        }
-      });
-  
-      // 4. 重點修正：處理 Points 的 translate 位置
-      // 確保 Points 不會因為我們之前的優化 (style transform) 而在匯出時位移
-      clonedSvg.querySelectorAll('g').forEach((g) => {
-        const gElement = g as SVGGElement;
-        const styleAttr = gElement.getAttribute('style');
-        if (styleAttr && styleAttr.includes('translate')) {
-          // 使用正規表達式抓取原本的座標數值
-          const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
-          if (match) {
-            // 將 CSS translate 轉為 SVG 原生的 transform 屬性
-            gElement.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
-            gElement.removeAttribute('style'); // 清除 style 避免干擾
-          }
-        }
-      });
-  
-      // 5. 轉換為圖片
-      const svgData = new XMLSerializer().serializeToString(clonedSvg);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
-  
-      const canvas = document.createElement('canvas');
-      canvas.width = imageSize.width;
-      canvas.height = imageSize.height;
-      const ctx = canvas.width > 0 ? canvas.getContext('2d') : null;
-  
-      if (!ctx) throw new Error("Could not get canvas context");
-  
-      const img = new Image();
+      }
+    });
+
+    // 4. 轉為圖片邏輯 (保持不變)
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    canvas.width = imageSize.width;
+    canvas.height = imageSize.height;
+
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = () => {
       const backgroundImg = new Image();
-  
-      // 確保底圖與標記層依序疊加
-      img.onload = () => {
-        backgroundImg.onload = () => {
+      backgroundImg.onload = () => {
+        if (ctx) {
           ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0);
-          
-          const link = document.createElement('a');
-          link.download = `測量結果-${new Date().getTime()}.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
-          
-          URL.revokeObjectURL(url);
-        };
-        backgroundImg.src = image;
+        }
+        
+        const link = document.createElement('a');
+        link.download = `測量結果-${new Date().getTime()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        URL.revokeObjectURL(url);
       };
-      img.src = url;
-  
-    } catch (error) {
-      console.error("匯出失敗:", error);
-      alert("圖片匯出發生錯誤，請查看 Console 紀錄。");
-    }
+      backgroundImg.src = image || '';
+    };
+    img.src = url;
   };
   
   // 複製圖片到剪貼簿邏輯
