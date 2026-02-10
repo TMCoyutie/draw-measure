@@ -113,20 +113,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
   
-    // --- 動態縮放係數計算 ---
-    // 以 1000px 為基準，900px 的圖 factor 大約是 0.9
+    // 根據 900x600 的比例自動調整縮放係數
     const factor = canvas.width / 1000;
-    const fontSize = Math.max(12, 16 * factor); // 最小不低於 12px
-    const markerSize = Math.max(4, 6 * factor);
+    const fontSize = Math.max(14, 18 * factor);
     const lineWidth = Math.max(2, 3 * factor);
-  
-    const COLORS = {
-      ACCENT: '#10b981',
-      MARKER: '#3b82f6',
-      ANGLE: '#2dd4bf',
-      CIRCLE: '#ef4444',
-      TEXT_BG: 'rgba(0, 0, 0, 0.75)' // 稍微加深背景提高對比
-    };
   
     // 1. 底圖
     const backgroundImg = new Image();
@@ -135,20 +125,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     await new Promise((resolve) => { backgroundImg.onload = resolve; });
     ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
   
-    // 2. 圓圈與十字準星 (十字消失的修正就在這裡)
+    // 2. 圓圈與十字準星 (關鍵：重置虛線)
     circles.forEach(circle => {
       ctx.save();
-      ctx.beginPath();
-      ctx.setLineDash([5 * factor, 3 * factor]); // 虛線也跟著縮放
-      ctx.strokeStyle = COLORS.CIRCLE;
+      ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = lineWidth;
+      
+      // 畫圓圈 (虛線)
+      ctx.beginPath();
+      ctx.setLineDash([5 * factor, 3 * factor]);
       ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
       ctx.stroke();
   
-      // 重要：畫完虛線必須清空設定，否則十字準星會變成隱形虛線
+      // --- 關鍵修正：清空虛線設定，十字準星才會出現 ---
       ctx.setLineDash([]); 
       ctx.beginPath();
-      const cs = 10 * factor; // 十字大小
+      const cs = 12 * factor;
       ctx.moveTo(circle.centerX - cs, circle.centerY);
       ctx.lineTo(circle.centerX + cs, circle.centerY);
       ctx.moveTo(circle.centerX, circle.centerY - cs);
@@ -157,26 +149,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.restore();
     });
   
-    // 3. 角度標籤 (處理 getAngleArc 回傳的物件)
+    // 3. 角度標籤 (與畫面完全同步)
     angles.forEach(angle => {
       const arcData = getAngleArc(angle);
       if (!arcData) return;
       ctx.save();
-      // 扇形
-      ctx.fillStyle = 'rgba(45, 212, 191, 0.2)';
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.25)';
       ctx.fill(new Path2D(arcData.fillPath));
-      // 弧線
-      ctx.strokeStyle = COLORS.ANGLE;
+      ctx.strokeStyle = '#2dd4bf';
       ctx.lineWidth = lineWidth;
       ctx.stroke(new Path2D(arcData.path));
   
-      // 角度標籤
       const text = `${arcData.degrees.toFixed(1)}°`;
-      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, COLORS.ANGLE, fontSize, factor);
+      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, '#2dd4bf', fontSize, factor);
       ctx.restore();
     });
   
-    // 4. 線段與長度標籤 (處理 getDisplayLabel 回傳的字串)
+    // 4. 線段與標籤 (自動偵測目前的字母或長度模式)
     lines.forEach(line => {
       const start = points.find(p => p.id === line.startPointId);
       const end = points.find(p => p.id === line.endPointId);
@@ -184,29 +173,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = COLORS.ACCENT; // 你可以根據選中狀態改顏色
+      ctx.strokeStyle = '#10b981'; 
       ctx.lineWidth = lineWidth;
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
       if (showLengthLabels) {
-        const text = getDisplayLabel(line);
+        // 直接呼叫你組件內定義的 getDisplayLabel，它會處理字母/長度的切換
+        const text = getDisplayLabel(line); 
         if (text) {
           const mx = (start.x + end.x) / 2;
           const my = (start.y + end.y) / 2;
-          drawLabelBox(ctx, text, mx, my, COLORS.ACCENT, fontSize, factor);
+          drawLabelBox(ctx, text, mx, my, '#10b981', fontSize, factor);
         }
       }
       ctx.restore();
     });
   
-    // 5. 標點 (最後畫，確保在最上面)
+    // 5. 標點
     points.forEach(point => {
       ctx.save();
       ctx.beginPath();
-      ctx.fillStyle = COLORS.MARKER;
-      ctx.arc(point.x, point.y, markerSize, 0, Math.PI * 2);
+      ctx.fillStyle = activePointId === point.id ? '#10b981' : '#3b82f6';
+      ctx.arc(point.x, point.y, 6 * factor, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'white';
       ctx.lineWidth = 1.5 * factor;
@@ -217,22 +207,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     return canvas;
   };
   
-  // --- 輔助函式：統一標籤繪製風格 ---
-  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, bgColor: string, fontSize: number, factor: number) => {
+  // 統一的標籤渲染輔助函式 (確保置中與背景框)
+  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, fontSize: number, f: number) => {
     ctx.font = `bold ${fontSize}px Arial, sans-serif`;
     const metrics = ctx.measureText(text);
-    const paddingX = 8 * factor;
-    const paddingY = 4 * factor;
-    const w = metrics.width + paddingX * 2;
-    const h = fontSize + paddingY * 2;
+    const pw = 10 * f; 
+    const ph = 6 * f;
+    const rw = metrics.width + pw;
+    const rh = fontSize + ph;
   
-    ctx.fillStyle = bgColor;
+    ctx.fillStyle = color;
     ctx.beginPath();
-    // 使用矩形，並確保居中
     if (ctx.roundRect) {
-      ctx.roundRect(x - w/2, y - h/2, w, h, 4 * factor);
+      ctx.roundRect(x - rw / 2, y - rh / 2, rw, rh, 4 * f);
     } else {
-      ctx.rect(x - w/2, y - h/2, w, h);
+      ctx.rect(x - rw / 2, y - rh / 2, rw, rh);
     }
     ctx.fill();
   
