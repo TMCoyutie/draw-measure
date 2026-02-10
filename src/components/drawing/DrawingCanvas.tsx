@@ -113,76 +113,108 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
   
-    // 精確色碼對齊
     const COLORS = {
       ACCENT: '#10b981',      // 翡翠綠
       MARKER: '#3b82f6',      // 標點藍
       SELECTED_1: '#7dd3fc',  // 淺藍
       SELECTED_2: '#0369a1',  // 深藍
       ANGLE: '#2dd4bf',       // 青色
-      CIRCLE: '#ef4444',      // 紅色圓圈
+      CIRCLE: '#ef4444',      // 紅色
     };
+  
+    // 動態計算字體大小：在大圖上字體要夠大才看得到
+    const fontSize = Math.max(16, Math.round(canvas.width * 0.02)); 
+    const fontStyle = `bold ${fontSize}px Arial, sans-serif`;
   
     // 1. 繪製底圖
     const backgroundImg = new Image();
     backgroundImg.crossOrigin = "anonymous";
     backgroundImg.src = image;
-    await new Promise((resolve) => { backgroundImg.onload = resolve; });
+    await new Promise((resolve) => {
+      backgroundImg.onload = resolve;
+      backgroundImg.onerror = () => resolve(null);
+    });
     ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
   
-    // 2. 繪製圓圈 (Circles) - 修正邏輯
-    circles.forEach(circle => {
+    // 2. 繪製線段與標籤
+    lines.forEach(line => {
+      const start = points.find(p => p.id === line.startPointId);
+      const end = points.find(p => p.id === line.endPointId);
+      if (!start || !end) return;
+  
+      let color = COLORS.ACCENT;
+      const selectedArray = Array.from(selectedLineIds);
+      const idx = selectedArray.indexOf(line.id);
+      if (idx !== -1) color = idx === 0 ? COLORS.SELECTED_1 : COLORS.SELECTED_2;
+  
       ctx.save();
-      // 圓形虛線邊框
+      // 畫線
       ctx.beginPath();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = COLORS.CIRCLE;
-      ctx.lineWidth = 2;
-      ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(3, fontSize / 4);
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
-      // 十字準星
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(circle.centerX - 15, circle.centerY);
-      ctx.lineTo(circle.centerX + 15, circle.centerY);
-      ctx.moveTo(circle.centerX, circle.centerY - 15);
-      ctx.lineTo(circle.centerX, circle.centerY + 15);
-      ctx.stroke();
+      // 畫標籤
+      if (showLengthLabels) {
+        // 這裡直接調用組件內的 getDisplayLabel
+        const labelText = getDisplayLabel(line);
+        
+        if (labelText && labelText.trim() !== "") {
+          const mx = (start.x + end.x) / 2;
+          const my = (start.y + end.y) / 2;
   
-      // 中心點
-      ctx.beginPath();
-      ctx.arc(circle.centerX, circle.centerY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'white';
-      ctx.fill();
-      ctx.stroke();
+          ctx.font = fontStyle;
+          const metrics = ctx.measureText(labelText);
+          const tw = metrics.width;
+          const th = fontSize; // 字體高度
+          
+          const paddingX = fontSize * 0.8;
+          const paddingY = fontSize * 0.5;
+          const rectW = tw + paddingX;
+          const rectH = th + paddingY;
+  
+          // 繪製背景框
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(mx - rectW / 2, my - rectH / 2, rectW, rectH, 8);
+          } else {
+            ctx.rect(mx - rectW / 2, my - rectH / 2, rectW, rectH);
+          }
+          ctx.fill();
+  
+          // 繪製文字
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle'; // 確保垂直置中
+          ctx.fillText(labelText, mx, my);
+        }
+      }
       ctx.restore();
     });
   
-    // 3. 繪製角度與標籤
+    // 3. 繪製角度
     angles.forEach(angle => {
       const arcData = getAngleArc(angle);
       if (!arcData) return;
       ctx.save();
-      const fillPath = new Path2D(arcData.fillPath);
-      ctx.fillStyle = 'rgba(45, 212, 191, 0.25)';
-      ctx.fill(fillPath);
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.3)';
+      ctx.fill(new Path2D(arcData.fillPath));
       ctx.strokeStyle = COLORS.ANGLE;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 3;
       ctx.stroke(new Path2D(arcData.path));
   
-      // 角度標籤背景
       const text = `${arcData.degrees.toFixed(1)}°`;
-      ctx.font = 'bold 14px Arial';
-      const metrics = ctx.measureText(text);
-      const textWidth = metrics.width;
-      const bgW = textWidth + 14;
-      const bgH = 22;
+      ctx.font = fontStyle;
+      const tw = ctx.measureText(text).width;
+      const bw = tw + fontSize;
+      const bh = fontSize * 1.5;
   
       ctx.fillStyle = COLORS.ANGLE;
-      // 使用 rect 替代 roundRect (相容性較好)
       ctx.beginPath();
-      ctx.roundRect(arcData.labelX - bgW/2, arcData.labelY - bgH/2, bgW, bgH, 5);
+      ctx.roundRect(arcData.labelX - bw/2, arcData.labelY - bh/2, bw, bh, 8);
       ctx.fill();
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
@@ -191,86 +223,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.restore();
     });
   
-    // --- 4. 繪製線段與長度標籤 ---
-    lines.forEach(line => {
-      const start = points.find(p => p.id === line.startPointId);
-      const end = points.find(p => p.id === line.endPointId);
-      if (!start || !end) return;
-  
-      // 取得顏色
-      let color = COLORS.ACCENT;
-      const selectedArray = Array.from(selectedLineIds);
-      const idx = selectedArray.indexOf(line.id);
-      if (idx !== -1) color = idx === 0 ? COLORS.SELECTED_1 : COLORS.SELECTED_2;
-  
+    // 4. 繪製圓圈
+    circles.forEach(circle => {
       ctx.save();
-      
-      // 繪製線段
+      ctx.setLineDash([fontSize/2, fontSize/3]);
+      ctx.strokeStyle = COLORS.CIRCLE;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3.5;
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
+      ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
       ctx.stroke();
-  
-      // 只有在開啟顯示標籤時才繪製
-      if (showLengthLabels) {
-        const labelText = getDisplayLabel(line); // 確保抓到 A: 10.5cm 這種格式
-        if (!labelText) return;
-  
-        const midX = (start.x + end.x) / 2;
-        const midY = (start.y + end.y) / 2;
-  
-        // 設置字體
-        ctx.font = 'bold 14px Arial, sans-serif';
-        const textMetrics = ctx.measureText(labelText);
-        const tw = textMetrics.width;
-        const th = 20; // 文字預估高度
-        const paddingX = 12;
-        const paddingY = 6;
-  
-        // 1. 繪製標籤背景框
-        ctx.fillStyle = color;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 2;
-        
-        const rectW = tw + paddingX;
-        const rectH = th + paddingY;
-        const rectX = midX - rectW / 2;
-        const rectY = midY - rectH / 2;
-  
-        // 繪製圓角矩形 (Canvas 原生支援 roundRect)
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(rectX, rectY, rectW, rectH, 6);
-        } else {
-          ctx.rect(rectX, rectY, rectW, rectH); // 備援方案
-        }
-        ctx.fill();
-  
-        // 2. 繪製文字 (關閉陰影以免模糊)
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(labelText, midX, midY);
-      }
       ctx.restore();
     });
   
-    // 5. 繪製點 (Points)
+    // 5. 繪製點 (最後畫，確保在最上層)
     points.forEach(point => {
       const isActive = activePointId === point.id;
       const isSelected = selectedPointIds.has(point.id);
       ctx.save();
       ctx.beginPath();
       ctx.fillStyle = isActive ? COLORS.ACCENT : COLORS.MARKER;
-      ctx.arc(point.x, point.y, isActive || isSelected ? 8 : 6, 0, Math.PI * 2);
+      const r = isActive || isSelected ? fontSize * 0.5 : fontSize * 0.35;
+      ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'white';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.stroke();
       ctx.restore();
     });
