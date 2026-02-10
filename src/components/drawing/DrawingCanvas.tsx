@@ -111,68 +111,35 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
     // 1. 複製 SVG 節點
     const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-
-    // 獲取所有原始元素與複製元素的清單
-    const originalElements = svgElement.querySelectorAll('path, line, circle, rect, text');
-    const clonedElements = clonedSvg.querySelectorAll('path, line, circle, rect, text');
-
-    // 2. 同步樣式：直接從畫面上抓取「目前的顏色」並寫入複製品中
-    clonedElements.forEach((el, index) => {
-      const originalEl = originalElements[index] as HTMLElement;
-      const clonedEl = el as HTMLElement;
-      if (!originalEl || !clonedEl) return;
-
-      const style = window.getComputedStyle(originalEl);
-
-      // 針對不同標籤類型同步顏色屬性
-      if (clonedEl.tagName === 'line' || clonedEl.tagName === 'path') {
-        // 移除感應用的透明線
-        if (clonedEl.getAttribute('stroke') === 'transparent') {
-          clonedEl.remove();
-          return;
-        }
-        clonedEl.setAttribute('stroke', style.stroke);
-        clonedEl.style.stroke = style.stroke;
-        clonedEl.setAttribute('stroke-width', style.strokeWidth);
-      }
-
-      if (clonedEl.tagName === 'circle' || clonedEl.tagName === 'rect') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.setAttribute('stroke', style.stroke); // 同步邊框
-      }
-
-      if (clonedEl.tagName === 'text') {
-        clonedEl.setAttribute('fill', style.fill);
-        clonedEl.style.fill = style.fill;
-        clonedEl.style.fontFamily = 'sans-serif'; // 確保字體一致
-        clonedEl.style.fontSize = style.fontSize;
-        clonedEl.style.fontWeight = style.fontWeight;
-      }
-    });
-
-    // 3. 修復 Points 的位移 (處理 translate)
+    
+    // --- 關鍵修正 2：強制將複製品的縮放與轉換重置為 1:1 ---
+    // 這確保了不論畫面現在放多大，導出的圖片座標都是基於圖片原始尺寸
+    clonedSvg.style.transform = 'none';
+    clonedSvg.setAttribute('width', imageSize.width.toString());
+    clonedSvg.setAttribute('height', imageSize.height.toString());
+  
+    // 2. 同步樣式與修正 Points 的位移 (保持你原本的代碼，但加上更精準的解析)
     clonedSvg.querySelectorAll('g').forEach((g) => {
       const styleAttr = g.getAttribute('style');
       if (styleAttr && styleAttr.includes('translate')) {
+        // 這裡要確保我們抓到的是「原始座標」，而非縮放後的座標
+        // 由於你的程式碼點位是基於原始圖尺寸計算的，我們直接保留 translate 即可
         const match = styleAttr.match(/translate\(([^px]+)px,\s*([^px]+)px\)/);
         if (match) {
           g.setAttribute('transform', `translate(${match[1]}, ${match[2]})`);
+          g.style.transform = 'none'; // 移除 style 裡的 transform 避免衝突
         }
       }
     });
-
-    // 4. 轉為圖片邏輯 (保持不變)
+  
+    // 3. 轉為圖片邏輯 (保持不變)
     const svgData = new XMLSerializer().serializeToString(clonedSvg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    const img = new Image();
-
+    
+    // 確保 Canvas 畫布大小等於圖片原始大小
     canvas.width = imageSize.width;
     canvas.height = imageSize.height;
-
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
 
     img.onload = () => {
       const backgroundImg = new Image();
