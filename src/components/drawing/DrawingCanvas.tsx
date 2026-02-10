@@ -191,18 +191,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.restore();
     });
   
-    // 4. 繪製線段與長度標籤
+    // --- 4. 繪製線段與長度標籤 ---
     lines.forEach(line => {
       const start = points.find(p => p.id === line.startPointId);
       const end = points.find(p => p.id === line.endPointId);
       if (!start || !end) return;
   
+      // 取得顏色
       let color = COLORS.ACCENT;
       const selectedArray = Array.from(selectedLineIds);
       const idx = selectedArray.indexOf(line.id);
       if (idx !== -1) color = idx === 0 ? COLORS.SELECTED_1 : COLORS.SELECTED_2;
   
       ctx.save();
+      
+      // 繪製線段
       ctx.beginPath();
       ctx.strokeStyle = color;
       ctx.lineWidth = 3.5;
@@ -210,16 +213,45 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
   
+      // 只有在開啟顯示標籤時才繪製
       if (showLengthLabels) {
-        const labelText = getDisplayLabel(line);
+        const labelText = getDisplayLabel(line); // 確保抓到 A: 10.5cm 這種格式
+        if (!labelText) return;
+  
         const midX = (start.x + end.x) / 2;
         const midY = (start.y + end.y) / 2;
-        ctx.font = 'bold 13px Arial';
-        const tw = ctx.measureText(labelText).width;
+  
+        // 設置字體
+        ctx.font = 'bold 14px Arial, sans-serif';
+        const textMetrics = ctx.measureText(labelText);
+        const tw = textMetrics.width;
+        const th = 20; // 文字預估高度
+        const paddingX = 12;
+        const paddingY = 6;
+  
+        // 1. 繪製標籤背景框
         ctx.fillStyle = color;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 2;
+        
+        const rectW = tw + paddingX;
+        const rectH = th + paddingY;
+        const rectX = midX - rectW / 2;
+        const rectY = midY - rectH / 2;
+  
+        // 繪製圓角矩形 (Canvas 原生支援 roundRect)
         ctx.beginPath();
-        ctx.roundRect(midX - (tw+14)/2, midY - 11, tw + 14, 22, 5);
+        if (ctx.roundRect) {
+          ctx.roundRect(rectX, rectY, rectW, rectH, 6);
+        } else {
+          ctx.rect(rectX, rectY, rectW, rectH); // 備援方案
+        }
         ctx.fill();
+  
+        // 2. 繪製文字 (關閉陰影以免模糊)
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
