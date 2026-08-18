@@ -80,6 +80,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   } = props;
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
@@ -105,151 +106,96 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
 
   const lastDragEndTimeRef = useRef<number>(0);
 
-  // 在 DrawingCanvas 組件內部定義這個輔助函式
-  const drawEverythingToCanvas = async (): Promise<HTMLCanvasElement | null> => {
-    if (!image || !imageSize) return null;
-  
-    const canvas = document.createElement('canvas');
-    canvas.width = imageSize.width;
-    canvas.height = imageSize.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-  
-    // 動態比例：確保 900x600 下標籤大小適中
-    const f = canvas.width / 1000;
-    const fontSize = Math.max(14, 18 * f);
-    const lineWidth = Math.max(2, 3 * f);
-  
-    // 1. 繪製底圖
-    const backgroundImg = new Image();
-    backgroundImg.crossOrigin = "anonymous";
-    backgroundImg.src = image;
-    await new Promise((resolve) => { backgroundImg.onload = resolve; });
-    ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-  
-    // 2. 圓圈 (虛線圓 + 十字實線)
-    circles.forEach(circle => {
-      ctx.save();
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = lineWidth;
-      ctx.beginPath();
-      ctx.setLineDash([5 * f, 3 * f]);
-      ctx.arc(circle.centerX, circle.centerY, circle.radius, 0, Math.PI * 2);
-      ctx.stroke();
-  
-      // 關鍵：清除虛線狀態，繪製實線十字
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      const cs = 12 * f;
-      ctx.moveTo(circle.centerX - cs, circle.centerY);
-      ctx.lineTo(circle.centerX + cs, circle.centerY);
-      ctx.moveTo(circle.centerX, circle.centerY - cs);
-      ctx.lineTo(circle.centerX, circle.centerY + cs);
-      ctx.stroke();
-      ctx.restore();
+  // 匯出時需要寫死的樣式屬性清單。之所以要一項項列出來，是因為匯出的 SVG
+  // 會脫離網頁本身獨立渲染，讀不到 Tailwind 的 class 規則，也讀不到
+  // hsl(var(--accent)) 這類 CSS 變數，所以每個節點「目前實際套用的樣式」
+  // 都要在複製時解析成具體數值，直接寫進去。
+  const EXPORT_PAINT_PROPS = [
+    'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin',
+    'opacity', 'fill-opacity', 'stroke-opacity',
+    'font-family', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline',
+  ] as const;
+
+  // 把畫面上「即時渲染」的 SVG 樹，每個節點目前實際套用的樣式（不管來源是
+  // inline style、Tailwind class、還是 CSS 變數）解析成寫死的值，蓋到
+  // 結構完全對應的複製節點上。這一步必須在複製節點的結構跟原本一模一樣時
+  // 進行，所以要在「移除互動用元素」之前做。
+  const inlineComputedStyles = (liveRoot: SVGSVGElement, cloneRoot: SVGSVGElement) => {
+    const liveNodes: Element[] = [liveRoot, ...Array.from(liveRoot.querySelectorAll('*'))];
+    const cloneNodes: Element[] = [cloneRoot, ...Array.from(cloneRoot.querySelectorAll('*'))];
+
+    liveNodes.forEach((liveEl, i) => {
+      const cloneEl = cloneNodes[i] as SVGElement | undefined;
+      if (!cloneEl) return;
+      const computed = getComputedStyle(liveEl);
+      EXPORT_PAINT_PROPS.forEach(prop => {
+        const value = computed.getPropertyValue(prop);
+        if (!value) return;
+        // 同時寫進 inline style 與屬性：inline style 的優先權最高，
+        // 可以直接蓋掉節點原本可能殘留的 hsl(var(--xxx)) 寫法；
+        // 屬性則是保底，確保就算某些渲染環境不吃 style 也能正確顯示。
+        cloneEl.style.setProperty(prop, value);
+        cloneEl.setAttribute(prop, value);
+      });
+      // Tailwind class 之類的外部樣式來源在獨立渲染時完全沒有作用，
+      // 上面已經把「用到的」樣式解析成寫死的值了，class 本身可以整個丟掉。
+      cloneEl.removeAttribute('class');
     });
-  
-    // 3. 角度標籤
-    angles.forEach(angle => {
-      const arcData = getAngleArc(angle);
-      if (!arcData) return;
-      ctx.save();
-      ctx.fillStyle = 'rgba(45, 212, 191, 0.25)';
-      ctx.fill(new Path2D(arcData.fillPath));
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = lineWidth;
-      ctx.stroke(new Path2D(arcData.path));
-  
-      const text = `${arcData.degrees.toFixed(1)}°`;
-      drawLabelBox(ctx, text, arcData.labelX, arcData.labelY, '#10b981', fontSize, f);
-      ctx.restore();
-    });
-  
-    // 4. 線段與標籤
-    lines.forEach((line, index) => {
-      const start = points.find(p => p.id === line.startPointId);
-      const end = points.find(p => p.id === line.endPointId);
-      if (!start || !end) return;
-  
-      ctx.save();
-      // 繪製線段
-      ctx.beginPath();
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = lineWidth;
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-  
-      // --- 標籤邏輯：移出 showLengthLabels 的限制 ---
-      let text = "";
-      if (showLengthLabels) {
-        // 模式 A：顯示長度 (例如 10.5cm)
-        text = getDisplayLabel(line);
-      } else {
-        // 模式 B：顯示代號 (例如 A, B, C)
-        // 優先取 line.label，若無則根據 index 生成字母
-        text = line.label || String.fromCharCode(65 + (index % 26));
-      }
-  
-      if (text && text.trim() !== "") {
-        const mx = (start.x + end.x) / 2;
-        const my = (start.y + end.y) / 2;
-        drawLabelBox(ctx, text, mx, my, '#10b981', fontSize, f);
-      }
-      
-      ctx.restore();
-    });
-  
-    // 5. 標點 (繪製在最頂層)
-    points.forEach(point => {
-      const isActive = activePointId === point.id;
-      ctx.save();
-      ctx.beginPath();
-      ctx.fillStyle = isActive ? '#10b981' : '#3b82f6';
-      ctx.arc(point.x, point.y, 8 * f, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = 1.5 * f;
-      ctx.stroke();
-      ctx.restore();
-    });
-  
-    return canvas;
   };
-  
-  // 輔助函式：繪製標籤底框與文字
-  const drawLabelBox = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, fontSize: number, f: number) => {
-    // 1. 對齊網頁字體：優先順序與系統 UI 一致
-    ctx.font = `500 ${fontSize}px "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-    
-    const metrics = ctx.measureText(text);
-    
-    // 2. 調整 Padding 與 圓角 (對齊網頁的 px-2.5 py-1.5)
-    const px = 18 * f; // 水平內距
-    const py = 8 * f; // 垂直內距
-    const rw = metrics.width + px;
-    const rh = fontSize + py;
-    const radius = 6 * f; // 圓角半徑
-  
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(x - rw / 2, y - rh / 2, rw, rh, radius);
-    } else {
-      ctx.rect(x - rw / 2, y - rh / 2, rw, rh);
+
+  // 組出可以獨立渲染、跟畫面所見完全一致的 SVG 字串：
+  // 1. 複製目前畫面上的 SVG
+  // 2. 解析樣式（見上）
+  // 3. 移除純互動用的元素（點擊熱區、圓心工具的縮放手把、正在畫的虛線預覽等，
+  //    這些節點在 JSX 裡都標了 data-export-ignore="true"）
+  // 4. 匯出尺寸固定使用原始像素，不受目前畫面縮放（scale）影響
+  const buildExportSvgString = (): string | null => {
+    const liveSvg = svgRef.current;
+    if (!liveSvg || !imageSize) return null;
+
+    const clone = liveSvg.cloneNode(true) as SVGSVGElement;
+    inlineComputedStyles(liveSvg, clone);
+
+    clone.querySelectorAll('[data-export-ignore="true"]').forEach(el => el.remove());
+
+    clone.setAttribute('width', String(imageSize.width));
+    clone.setAttribute('height', String(imageSize.height));
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    return new XMLSerializer().serializeToString(clone);
+  };
+
+  // 把整理好的 SVG 畫成 canvas，供「匯出圖片」跟「複製圖片」共用
+  const renderSvgToCanvas = async (): Promise<HTMLCanvasElement | null> => {
+    const svgString = buildExportSvgString();
+    if (!svgString || !imageSize) return null;
+
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('SVG 轉圖片失敗'));
+        img.src = url;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = imageSize.width;
+      canvas.height = imageSize.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    } finally {
+      URL.revokeObjectURL(url);
     }
-    ctx.fill();
-  
-    // 4. 繪製文字
-    ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x, y);
   };
   
   // 匯出圖片
   const handleExportImage = async () => {
-    const canvas = await drawEverythingToCanvas();
+    const canvas = await renderSvgToCanvas();
     if (!canvas) return;
   
     const link = document.createElement('a');
@@ -260,7 +206,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
   
   // 複製圖片到剪貼簿
   const handleCopyImage = async () => {
-    const canvas = await drawEverythingToCanvas();
+    const canvas = await renderSvgToCanvas();
     if (!canvas) return;
   
     try {
@@ -682,6 +628,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
           </button>
 
             <svg
+              ref={svgRef}
               width={displayWidth}
               height={displayHeight}
               viewBox={`0 0 ${nativeWidth} ${nativeHeight}`}
@@ -706,8 +653,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               {/* Background image */}
               <image
                 href={image}
-                width={imageSize?.width || 800}
-                height={imageSize?.height || 600}
+                width={nativeWidth}
+                height={nativeHeight}
               />
   
               {/* --- 圓心參考線與十字準星 (最底層渲染) --- */}
@@ -752,7 +699,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                 
                     {/* 2. 控制層：僅在「圓心工具」模式下顯示控制框與感應區 */}
                     {currentTool === 'circle' && (
-                      <g>
+                      <g data-export-ignore="true">
                         {/* 整體抓取區域 */}
                         <rect
                           x={bbox.left}
@@ -824,6 +771,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                   <g key={line.id}>
                     {/* Invisible wider line for easier click detection */}
                     <line
+                      data-export-ignore="true"
                       x1={startPos.x}
                       y1={startPos.y}
                       x2={endPos.x}
@@ -920,6 +868,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                     
                     {/* Invisible wider arc for click detection */}
                     <path
+                      data-export-ignore="true"
                       d={arcData.path}
                       fill="none"
                       stroke="transparent"
@@ -976,6 +925,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
               {/* Active line (being drawn) */}
               {activePoint && mousePosition && (
                 <line
+                  data-export-ignore="true"
                   x1={activePoint.x}
                   y1={activePoint.y}
                   x2={mousePosition.x}
@@ -1008,6 +958,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                   >
                     {/* 這裡的 cx, cy 全部改為 0，因為位置由上面的 translate 控制 */}
                     <circle
+                      data-export-ignore="true"
                       cx={0}
                       cy={0}
                       r={20}
