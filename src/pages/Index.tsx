@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDrawingState } from '@/hooks/useDrawingState';
 import { DrawingCanvas, DrawingCanvasRef } from '@/components/drawing/DrawingCanvas';
 import { Toolbar } from '@/components/drawing/Toolbar';
@@ -115,17 +115,23 @@ const Index = () => {
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 顯示縮放百分比標籤 1.5 秒後自動淡出，滾輪縮放跟圖片自動 fit 都會用到
-  const flashZoomLabel = () => {
+  // 用 useCallback 固定參考：zoomTimeoutRef 是 ref 不會變，所以 deps 給空陣列即可，
+  // 這樣每次 Index 重新渲染時 flashZoomLabel 都是同一個函式參考。
+  const flashZoomLabel = useCallback(() => {
     setShowZoomLabel(true);
     if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
     zoomTimeoutRef.current = setTimeout(() => setShowZoomLabel(false), 1500);
-  };
+  }, []);
 
   // 圖片上傳完成時，套用 DrawingCanvas 算好的「適應可視區域」縮放比例
-  const handleImageLoad = (fitScale: number) => {
+  // 同樣用 useCallback 固定參考：因為這個函式會當成 prop 傳給 DrawingCanvas，
+  // 而 DrawingCanvas 內的 useEffect 依賴它——如果每次渲染都產生新函式，
+  // 會導致該 useEffect 不斷重新觸發、scale 被反覆重置，形成無限迴圈
+  // （縮放卡死在 fit 比例、標籤永遠不消失）。
+  const handleImageLoad = useCallback((fitScale: number) => {
     setScale(fitScale);
     flashZoomLabel();
-  };
+  }, [flashZoomLabel]);
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
