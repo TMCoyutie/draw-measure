@@ -34,6 +34,7 @@ interface DrawingCanvasProps {
   onResetAll: () => void;
   scale: number;
   showZoomLabel: boolean;
+  onImageLoad: (fitScale: number) => void;
 } 
 
 // 定義暴露給父組件的方法介面
@@ -75,6 +76,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     onResetAll,
     scale,
     showZoomLabel,
+    onImageLoad,
   } = props;
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -286,10 +288,27 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
       const img = new Image();
       img.onload = () => {
         setImageSize({ width: img.width, height: img.height });
+
+        // 計算「適應可視區域」的初始縮放比例，行為類似 Photoshop / Affinity 的
+        // Fit to Window：讓圖片一上傳就完整顯示在畫布容器內，而不是直接以
+        // 原始像素尺寸（可能遠大於或遠小於螢幕）當作畫布大小。
+        if (containerRef.current) {
+          const containerRect = containerRef.current.getBoundingClientRect();
+          // 對應容器的 p-8（2rem，即上下左右各 32px）留白
+          const PADDING = 64;
+          const availableWidth = Math.max(containerRect.width - PADDING, 100);
+          const availableHeight = Math.max(containerRect.height - PADDING, 100);
+          const fitScale = Math.min(
+            availableWidth / img.width,
+            availableHeight / img.height,
+            1 // 不主動放大過小的圖片，避免畫面模糊
+          );
+          onImageLoad(Math.max(fitScale, 0.05));
+        }
       };
       img.src = image;
     }
-  }, [image]);
+  }, [image, onImageLoad]);
 
   const handleClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (draggingPointId || draggingHandle || isDraggingCircle) return; // Don't trigger click during drag
@@ -616,6 +635,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
     };
   };
 
+  // 實際顯示尺寸 = 原始像素尺寸 × 縮放比例。
+  // 這個尺寸會直接套用在 <svg> 的 width/height 上（而不是用 CSS transform 假縮放），
+  // 讓外層容器的版面配置真正跟著縮放結果撐大/縮小，而不是被 overflow-hidden 裁切。
+  const nativeWidth = imageSize?.width || 800;
+  const nativeHeight = imageSize?.height || 600;
+  const displayWidth = nativeWidth * scale;
+  const displayHeight = nativeHeight * scale;
+
   return (
     <div 
       ref={containerRef}
@@ -654,18 +681,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
             <X size={20} /> 
           </button>
 
-          <div 
-            className="relative" 
-            style={{ 
-              transform: `scale(${scale})`, 
-              transformOrigin: 'center center', // 設定縮放中心
-              transition: 'transform 0.1s ease-out' 
-            }}
-          >
-          
             <svg
-              width={imageSize?.width || 800}
-              height={imageSize?.height || 600}
+              width={displayWidth}
+              height={displayHeight}
+              viewBox={`0 0 ${nativeWidth} ${nativeHeight}`}
+              style={{ transition: 'width 0.1s ease-out, height 0.1s ease-out' }}
               className={`${currentTool === 'marker' || currentTool === 'circle' ? 'cursor-crosshair' : currentTool === 'angle' ? 'cursor-pointer' : draggingPointId || draggingHandle ? 'cursor-grabbing' : 'cursor-default'}`}
               onClick={handleClick}
               onMouseMove={handleMouseMove}
@@ -1013,7 +1033,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>((p
                 );
               })}
             </svg>
-          </div>
         </div>
       )}
     </div>
