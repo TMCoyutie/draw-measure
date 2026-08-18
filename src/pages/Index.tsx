@@ -105,22 +105,38 @@ const Index = () => {
   }, [image, setImage]); // 記得把 image 加入相依陣列中
 
   // 在 Index 組件內新增
+  // 縮放範圍：5% ~ 500%（相對於圖片原始像素）
+  const MIN_SCALE = 0.05;
+  const MAX_SCALE = 5;
+  // 初始值先給 1，實際顯示比例會在圖片上傳、DrawingCanvas 算出「適應可視區域」
+  // 的 fitScale 後，透過 onImageLoad 回呼覆寫成正確的初始值。
   const [scale, setScale] = useState(1);
   const [showZoomLabel, setShowZoomLabel] = useState(false);
   const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
+  // 顯示縮放百分比標籤 1.5 秒後自動淡出，滾輪縮放跟圖片自動 fit 都會用到
+  const flashZoomLabel = () => {
+    setShowZoomLabel(true);
+    if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+    zoomTimeoutRef.current = setTimeout(() => setShowZoomLabel(false), 1500);
+  };
+
+  // 圖片上傳完成時，套用 DrawingCanvas 算好的「適應可視區域」縮放比例
+  const handleImageLoad = (fitScale: number) => {
+    setScale(fitScale);
+    flashZoomLabel();
+  };
+
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault(); // 關鍵：阻止瀏覽器縮放整個網頁
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        // 改用等比例（乘法）縮放，每次滾動約 ±10%，
+        // 不論目前縮放比例是 15% 還是 300%，手感都一致（Photoshop/Affinity 風格）
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
         setScale(prev => {
-          const next = Math.min(Math.max(0.5, prev + delta), 3); // 限制縮放範圍在 0.5x ~ 3x
-
-          // --- 新增：觸發標籤顯示 ---
-          setShowZoomLabel(true);
-          if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
-          zoomTimeoutRef.current = setTimeout(() => setShowZoomLabel(false), 1500); // 1.5秒後消失
+          const next = Math.min(Math.max(MIN_SCALE, prev * factor), MAX_SCALE);
+          flashZoomLabel();
           return next;
         });
       }
@@ -264,6 +280,7 @@ const Index = () => {
           onResetAll={handleResetAll}
           scale={scale}
           showZoomLabel={showZoomLabel}
+          onImageLoad={handleImageLoad}
         />
       </div>
 
